@@ -16,7 +16,7 @@ export function DashboardHeader({ error, status }: DashboardHeaderProps) {
       </div>
       <div className="flex flex-col gap-2 rounded-md border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm sm:min-w-80">
         <div className="flex items-center justify-between gap-3">
-          <span className="font-medium text-slate-600">FastAPI</span>
+          <span className="font-medium text-slate-600">Database Status</span>
           <span
             className={`rounded-full px-3 py-1 text-xs font-semibold ${status === "connected"
               ? "bg-emerald-100 text-emerald-800"
@@ -28,7 +28,6 @@ export function DashboardHeader({ error, status }: DashboardHeaderProps) {
             {status}
           </span>
         </div>
-        <p className="break-all font-mono text-xs text-slate-500">{API_URL}</p>
         {error ? <p className="text-xs text-rose-700">{error}</p> : null}
       </div>
     </header>
