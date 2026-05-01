@@ -26,3 +26,8 @@ export type Playlist = {
   name: string;
   created_date: string;
 };
+
+export type PlaylistSong = Song & {
+  added_date: string;
+  playlist_id: number;
+};

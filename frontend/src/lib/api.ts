@@ -30,3 +30,16 @@ export async function postJson<TResponse, TBody>(
 
   return response.json();
 }
+
+export async function postEmpty<TResponse>(path: string): Promise<TResponse> {
+  const response = await fetch(`${API_URL}${path}`, {
+    cache: "no-store",
+    method: "POST",
+  });
+
+  if (!response.ok) {
+    throw new Error(`${response.status} ${response.statusText}`);
+  }
+
+  return response.json();
+}

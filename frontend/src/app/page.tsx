@@ -5,9 +5,17 @@ import { useEffect, useState } from "react";
 import { CountCards } from "@/components/CountCards";
 import { CreatePlaylistForm } from "@/components/CreatePlaylistForm";
 import { DashboardHeader } from "@/components/DashboardHeader";
+import { PlaylistsPanel } from "@/components/PlaylistsPanel";
 import { SongsTable } from "@/components/SongsTable";
-import { fetchJson } from "@/lib/api";
-import type { ApiStatus, Song, Summary, User } from "@/types/music";
+import { fetchJson, postEmpty } from "@/lib/api";
+import type {
+  ApiStatus,
+  Playlist,
+  PlaylistSong,
+  Song,
+  Summary,
+  User,
+} from "@/types/music";
 
 export default function Home() {
   const [status, setStatus] = useState<ApiStatus>("checking");
@@ -15,11 +23,26 @@ export default function Home() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [songs, setSongs] = useState<Song[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [playlists, setPlaylists] = useState<Playlist[]>([]);
+  const [playlistSongs, setPlaylistSongs] = useState<PlaylistSong[]>([]);
+  const [selectedPlaylistId, setSelectedPlaylistId] = useState("");
   const [search, setSearch] = useState("");
+  const [addingSongId, setAddingSongId] = useState<number | null>(null);
   const [loadingSongs, setLoadingSongs] = useState(false);
+  const [loadingPlaylistSongs, setLoadingPlaylistSongs] = useState(false);
 
   async function refreshSummary() {
     setSummary(await fetchJson<Summary>("/dashboard/summary"));
+  }
+
+  async function loadPlaylists(userList: User[]) {
+    const userPlaylists = await Promise.all(
+      userList.map((user) =>
+        fetchJson<Playlist[]>(`/users/${user.user_id}/playlists`),
+      ),
+    );
+
+    return userPlaylists.flat();
   }
 
   useEffect(() => {
@@ -31,9 +54,14 @@ export default function Home() {
           fetchJson<Summary>("/dashboard/summary"),
           fetchJson<User[]>("/users"),
         ]);
+        const playlistData = await loadPlaylists(userData);
 
         setSummary(summaryData);
         setUsers(userData);
+        setPlaylists(playlistData);
+        setSelectedPlaylistId(
+          playlistData.length === 1 ? String(playlistData[0].playlist_id) : "",
+        );
         setStatus(root.message ? "connected" : "error");
         setError("");
       } catch (caughtError) {
@@ -76,15 +104,79 @@ export default function Home() {
     loadSongs();
   }, [search]);
 
-  function handlePlaylistCreated() {
-    refreshSummary().catch((caughtError) => {
+  useEffect(() => {
+    async function loadPlaylistSongs() {
+      if (!selectedPlaylistId) {
+        setPlaylistSongs([]);
+        return;
+      }
+
+      try {
+        setLoadingPlaylistSongs(true);
+        setPlaylistSongs(
+          await fetchJson<PlaylistSong[]>(
+            `/playlists/${selectedPlaylistId}/songs`,
+          ),
+        );
+        setError("");
+      } catch (caughtError) {
+        setError(
+          caughtError instanceof Error
+            ? caughtError.message
+            : "Could not load playlist songs",
+        );
+      } finally {
+        setLoadingPlaylistSongs(false);
+      }
+    }
+
+    loadPlaylistSongs();
+  }, [selectedPlaylistId]);
+
+  async function refreshPlaylists(nextSelectedPlaylistId = selectedPlaylistId) {
+    const playlistData = await loadPlaylists(users);
+    setPlaylists(playlistData);
+    setSelectedPlaylistId(nextSelectedPlaylistId);
+  }
+
+  function handlePlaylistCreated(playlist: Playlist) {
+    Promise.all([refreshSummary(), refreshPlaylists(String(playlist.playlist_id))])
+      .catch((caughtError) => {
+        setError(
+          caughtError instanceof Error
+            ? caughtError.message
+            : "Could not refresh playlists",
+        );
+      });
+  }
+
+  async function handleAddToPlaylist(song: Song) {
+    if (!selectedPlaylistId) {
+      setError("Select a playlist before adding songs.");
+      return;
+    }
+
+    try {
+      setAddingSongId(song.song_id);
+      await postEmpty<{ message: string }>(
+        `/playlists/${selectedPlaylistId}/songs/${song.song_id}`,
+      );
+      setPlaylistSongs(
+        await fetchJson<PlaylistSong[]>(`/playlists/${selectedPlaylistId}/songs`),
+      );
+      setError("");
+    } catch (caughtError) {
       setError(
         caughtError instanceof Error
-          ? caughtError.message
-          : "Could not refresh dashboard summary",
+          ? `Could not add song: ${caughtError.message}`
+          : "Could not add song",
       );
-    });
+    } finally {
+      setAddingSongId(null);
+    }
   }
+
+  const playlistSongIds = new Set(playlistSongs.map((song) => song.song_id));
 
   return (
     <main className="min-h-screen bg-[#f5f7fb] text-slate-950">
@@ -94,12 +186,29 @@ export default function Home() {
 
         <section className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
           <SongsTable
+            addingSongId={addingSongId}
+            playlistSongIds={playlistSongIds}
             loading={loadingSongs}
+            onAddToPlaylist={handleAddToPlaylist}
             onSearchChange={setSearch}
             search={search}
+            selectedPlaylistId={selectedPlaylistId}
             songs={songs}
           />
-          <CreatePlaylistForm onCreated={handlePlaylistCreated} users={users} />
+          <div className="flex flex-col gap-6">
+            <CreatePlaylistForm
+              onCreated={handlePlaylistCreated}
+              users={users}
+            />
+            <PlaylistsPanel
+              loading={loadingPlaylistSongs}
+              onSelectPlaylist={setSelectedPlaylistId}
+              playlistSongs={playlistSongs}
+              playlists={playlists}
+              selectedPlaylistId={selectedPlaylistId}
+              users={users}
+            />
+          </div>
         </section>
       </div>
     </main>
