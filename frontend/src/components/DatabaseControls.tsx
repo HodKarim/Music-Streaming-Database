@@ -13,15 +13,6 @@ export function DatabaseControls({ onChanged }: DatabaseControlsProps) {
   const [isWorking, setIsWorking] = useState(false);
 
   async function runAction(action: "clear" | "seed") {
-    const message =
-      action === "clear"
-        ? "Clear the database?"
-        : "Fill the tables with a random mix?";
-
-    if (!window.confirm(message)) {
-      return;
-    }
-
     try {
       setIsWorking(true);
       setStatus(action === "clear" ? "Clearing database..." : "Filling tables...");
