@@ -10,3 +10,23 @@ export async function fetchJson<T>(path: string): Promise<T> {
 
   return response.json();
 }
+
+export async function postJson<TResponse, TBody>(
+  path: string,
+  body: TBody,
+): Promise<TResponse> {
+  const response = await fetch(`${API_URL}${path}`, {
+    body: JSON.stringify(body),
+    cache: "no-store",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+  });
+
+  if (!response.ok) {
+    throw new Error(`${response.status} ${response.statusText}`);
+  }
+
+  return response.json();
+}

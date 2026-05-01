@@ -2,13 +2,6 @@ export type ApiStatus = "checking" | "connected" | "error";
 
 export type Summary = {
   counts: Record<string, number | null>;
-  top_genres: { genre: string; song_count: number }[];
-  recent_playlist_adds: {
-    added_date: string;
-    playlist_name: string;
-    song_title: string;
-    artist_name: string;
-  }[];
 };
 
 export type Song = {
@@ -20,14 +13,16 @@ export type Song = {
   album_title: string;
 };
 
-export type Artist = {
-  artist_id: number;
+export type User = {
+  user_id: number;
   name: string;
+  email: string;
+  is_admin: boolean;
 };
 
-export type Album = {
-  album_id: number;
-  title: string;
-  release_date: string | null;
-  artist_name: string;
+export type Playlist = {
+  playlist_id: number;
+  user_id: number;
+  name: string;
+  created_date: string;
 };

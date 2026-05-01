@@ -2,20 +2,14 @@ import { formatDuration } from "@/lib/format";
 import type { Song } from "@/types/music";
 
 type SongsTableProps = {
-  genres: string[];
-  genre: string;
   loading: boolean;
-  onGenreChange: (genre: string) => void;
   onSearchChange: (search: string) => void;
   search: string;
   songs: Song[];
 };
 
 export function SongsTable({
-  genres,
-  genre,
   loading,
-  onGenreChange,
   onSearchChange,
   search,
   songs,
@@ -35,18 +29,6 @@ export function SongsTable({
             type="search"
             value={search}
           />
-          <select
-            className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm outline-none ring-teal-600 transition focus:ring-2"
-            onChange={(event) => onGenreChange(event.target.value)}
-            value={genre}
-          >
-            <option value="">All genres</option>
-            {genres.map((genreName) => (
-              <option key={genreName} value={genreName}>
-                {genreName}
-              </option>
-            ))}
-          </select>
         </div>
       </div>
       <div className="overflow-x-auto">

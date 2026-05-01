@@ -9,13 +9,26 @@ router = APIRouter(prefix="/users", tags=["users"])
 
 @router.get("")
 def get_users():
-    return fetch_all(
+    users = fetch_all(
         """
         SELECT user_id, name, email, is_admin
         FROM users
         ORDER BY user_id
         """
     )
+
+    if users:
+        return users
+
+    user_id = execute_query(
+        """
+        INSERT INTO users (name, email, password, is_admin)
+        VALUES (%s, %s, %s, %s)
+        """,
+        ("Demo User", "demo@example.com", "demo-password", False),
+    )
+
+    return [get_user(user_id)]
 
 
 @router.get("/{user_id}")
