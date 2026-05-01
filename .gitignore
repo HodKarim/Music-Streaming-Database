@@ -1,1 +1,16 @@
+node_modules/
+.next/
+build/
+out/
+coverage/
 __pycache__/
+
+.env*
+*.py[cod]
+*.tsbuildinfo
+*.log
+*.pem
+.DS_Store
+
+next-env.d.ts
+.vercel/
