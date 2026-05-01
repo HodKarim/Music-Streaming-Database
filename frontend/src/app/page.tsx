@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { CountCards } from "@/components/CountCards";
 import { CreatePlaylistForm } from "@/components/CreatePlaylistForm";
+import { DatabaseControls } from "@/components/DatabaseControls";
 import { DashboardHeader } from "@/components/DashboardHeader";
 import { PlaylistsPanel } from "@/components/PlaylistsPanel";
 import { SongsTable } from "@/components/SongsTable";
@@ -35,7 +36,7 @@ export default function Home() {
     setSummary(await fetchJson<Summary>("/dashboard/summary"));
   }
 
-  async function loadPlaylists(userList: User[]) {
+  const loadPlaylists = useCallback(async (userList: User[]) => {
     const userPlaylists = await Promise.all(
       userList.map((user) =>
         fetchJson<Playlist[]>(`/users/${user.user_id}/playlists`),
@@ -43,27 +44,44 @@ export default function Home() {
     );
 
     return userPlaylists.flat();
-  }
+  }, []);
+
+  const loadOverviewData = useCallback(async () => {
+    setStatus("checking");
+    const [root, summaryData, userData] = await Promise.all([
+      fetchJson<{ message: string }>("/"),
+      fetchJson<Summary>("/dashboard/summary"),
+      fetchJson<User[]>("/users"),
+    ]);
+    const playlistData = await loadPlaylists(userData);
+
+    setSummary(summaryData);
+    setUsers(userData);
+    setPlaylists(playlistData);
+    setSelectedPlaylistId(
+      playlistData.length === 1 ? String(playlistData[0].playlist_id) : "",
+    );
+    setStatus(root.message ? "connected" : "error");
+    setError("");
+  }, [loadPlaylists]);
+
+  const loadSongsData = useCallback(async () => {
+    const params = new URLSearchParams({ limit: "50" });
+
+    if (search.trim()) {
+      params.set("search", search.trim());
+    }
+
+    setLoadingSongs(true);
+    setSongs(await fetchJson<Song[]>(`/songs?${params.toString()}`));
+    setError("");
+    setLoadingSongs(false);
+  }, [search]);
 
   useEffect(() => {
     async function loadOverview() {
       try {
-        setStatus("checking");
-        const [root, summaryData, userData] = await Promise.all([
-          fetchJson<{ message: string }>("/"),
-          fetchJson<Summary>("/dashboard/summary"),
-          fetchJson<User[]>("/users"),
-        ]);
-        const playlistData = await loadPlaylists(userData);
-
-        setSummary(summaryData);
-        setUsers(userData);
-        setPlaylists(playlistData);
-        setSelectedPlaylistId(
-          playlistData.length === 1 ? String(playlistData[0].playlist_id) : "",
-        );
-        setStatus(root.message ? "connected" : "error");
-        setError("");
+        await loadOverviewData();
       } catch (caughtError) {
         setStatus("error");
         setError(
@@ -75,20 +93,12 @@ export default function Home() {
     }
 
     loadOverview();
-  }, []);
+  }, [loadOverviewData]);
 
   useEffect(() => {
     async function loadSongs() {
-      const params = new URLSearchParams({ limit: "50" });
-
-      if (search.trim()) {
-        params.set("search", search.trim());
-      }
-
       try {
-        setLoadingSongs(true);
-        setSongs(await fetchJson<Song[]>(`/songs?${params.toString()}`));
-        setError("");
+        await loadSongsData();
       } catch (caughtError) {
         setStatus("error");
         setError(
@@ -102,7 +112,13 @@ export default function Home() {
     }
 
     loadSongs();
-  }, [search]);
+  }, [loadSongsData]);
+
+  async function handleDatabaseChanged() {
+    setPlaylistSongs([]);
+    await loadOverviewData();
+    await loadSongsData();
+  }
 
   useEffect(() => {
     async function loadPlaylistSongs() {
@@ -196,6 +212,7 @@ export default function Home() {
             songs={songs}
           />
           <div className="flex flex-col gap-6">
+            <DatabaseControls onChanged={handleDatabaseChanged} />
             <CreatePlaylistForm
               onCreated={handlePlaylistCreated}
               users={users}

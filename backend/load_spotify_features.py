@@ -1,5 +1,6 @@
 import argparse
 import csv
+import random
 from pathlib import Path
 
 from mysql.connector import Error
@@ -75,8 +76,10 @@ def import_rows(csv_path: Path, limit: int) -> dict[str, int]:
     try:
         with csv_path.open("r", encoding="utf-8-sig", newline="") as csv_file:
             reader = csv.DictReader(csv_file)
+            rows = list(reader)
+            random.shuffle(rows)
 
-            for row in reader:
+            for row in rows:
                 if stats["songs"] >= limit:
                     break
 

@@ -1,6 +1,10 @@
-from fastapi import APIRouter
+from pathlib import Path
 
-from backend.database import fetch_all, fetch_one
+from fastapi import APIRouter
+from mysql.connector import Error
+
+from backend.database import fetch_all, fetch_one, get_connection
+from backend.load_spotify_features import DEFAULT_CSV_PATH, import_rows
 
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
@@ -51,3 +55,37 @@ def get_summary():
         "top_genres": top_genres,
         "recent_playlist_adds": recent_playlist_adds,
     }
+
+
+@router.post("/clear")
+def clear_database():
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute("SET FOREIGN_KEY_CHECKS = 0")
+        for table_name in (
+            "playlist_songs",
+            "playlists",
+            "songs",
+            "albums",
+            "artists",
+            "users",
+        ):
+            cursor.execute(f"TRUNCATE TABLE {table_name}")
+        cursor.execute("SET FOREIGN_KEY_CHECKS = 1")
+        conn.commit()
+        return {"message": "Database cleared"}
+    except Error:
+        conn.rollback()
+        raise
+    finally:
+        cursor.close()
+        conn.close()
+
+
+@router.post("/seed")
+def seed_database(limit: int = 50):
+    csv_path = Path(DEFAULT_CSV_PATH)
+    stats = import_rows(csv_path, limit=limit)
+    return {"message": "Database filled", "stats": stats}
