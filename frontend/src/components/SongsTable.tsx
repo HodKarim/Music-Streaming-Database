@@ -1,5 +1,9 @@
+import { useMemo, useState } from "react";
+
 import { formatDuration } from "@/lib/format";
 import type { Song } from "@/types/music";
+
+const SONGS_PER_PAGE = 10;
 
 type SongsTableProps = {
   addingSongId: number | null;
@@ -22,6 +26,16 @@ export function SongsTable({
   selectedPlaylistId,
   songs,
 }: SongsTableProps) {
+  const [currentPage, setCurrentPage] = useState(1);
+  const totalPages = Math.max(Math.ceil(songs.length / SONGS_PER_PAGE), 1);
+  const activePage = Math.min(currentPage, totalPages);
+  const pageStart = (activePage - 1) * SONGS_PER_PAGE;
+  const pageEnd = pageStart + SONGS_PER_PAGE;
+  const visibleSongs = useMemo(
+    () => songs.slice(pageStart, pageEnd),
+    [pageEnd, pageStart, songs],
+  );
+
   return (
     <div className="rounded-md border border-slate-200 bg-white shadow-sm">
       <div className="flex flex-col gap-3 border-b border-slate-200 p-4 md:flex-row md:items-center md:justify-between">
@@ -32,7 +46,10 @@ export function SongsTable({
         <div className="flex flex-col gap-2 sm:flex-row">
           <input
             className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm outline-none ring-teal-600 transition focus:ring-2"
-            onChange={(event) => onSearchChange(event.target.value)}
+            onChange={(event) => {
+              setCurrentPage(1);
+              onSearchChange(event.target.value);
+            }}
             placeholder="Search songs"
             type="search"
             value={search}
@@ -52,7 +69,7 @@ export function SongsTable({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {songs.map((song) => {
+            {visibleSongs.map((song) => {
               const isAlreadyAdded = playlistSongIds.has(song.song_id);
               const isAdding = addingSongId === song.song_id;
 
@@ -93,6 +110,35 @@ export function SongsTable({
             ) : null}
           </tbody>
         </table>
+      </div>
+      <div className="flex flex-col gap-3 border-t border-slate-200 p-4 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+        <span>
+          Showing {songs.length ? pageStart + 1 : 0}-
+          {Math.min(pageEnd, songs.length)} of {songs.length}
+        </span>
+        <div className="flex items-center gap-2">
+          <button
+            className="h-9 rounded-md border border-slate-300 px-3 font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300"
+            disabled={activePage === 1}
+            onClick={() => setCurrentPage((page) => Math.max(page - 1, 1))}
+            type="button"
+          >
+            Previous
+          </button>
+          <span className="min-w-16 text-center">
+            {activePage} / {totalPages}
+          </span>
+          <button
+            className="h-9 rounded-md border border-slate-300 px-3 font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300"
+            disabled={activePage === totalPages}
+            onClick={() =>
+              setCurrentPage((page) => Math.min(page + 1, totalPages))
+            }
+            type="button"
+          >
+            Next
+          </button>
+        </div>
       </div>
     </div>
   );

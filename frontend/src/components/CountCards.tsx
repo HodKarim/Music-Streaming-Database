@@ -6,13 +6,12 @@ const COUNT_CARDS = [
   ["Songs", "songs"],
   ["Artists", "artists"],
   ["Albums", "albums"],
-  ["Users", "users"],
   ["Playlists", "playlists"],
 ] as const;
 
 export function CountCards({ counts }: CountCardsProps) {
   return (
-    <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+    <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
       {COUNT_CARDS.map(([label, key]) => (
         <div
           className="rounded-md border border-slate-200 bg-white p-4 shadow-sm"
