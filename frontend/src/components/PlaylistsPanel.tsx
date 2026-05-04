@@ -68,11 +68,13 @@ export function PlaylistsPanel({
               onClick={async () => {
                 const newName = prompt("Enter new playlist name:");
                 if (!newName) return;
+
                 await fetch(`http://127.0.0.1:8000/playlists/${selectedPlaylistId}`, {
                   method: "PUT",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({ name: newName }),
                 });
+
                 await onRefreshPlaylists();
               }}
             >
