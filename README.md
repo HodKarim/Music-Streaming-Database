@@ -20,6 +20,12 @@ python3 -m pip install -r backend/requirements.txt
 uvicorn backend.main:app --reload
 ```
 
+4. Load data from CSV:
+
+```
+python3 -m backend.load_spotify_features --limit 500
+```
+
 ## Run the frontend
 
 ```bash
