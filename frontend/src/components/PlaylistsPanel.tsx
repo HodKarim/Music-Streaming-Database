@@ -59,6 +59,38 @@ export function PlaylistsPanel({
           </div>
         ) : null}
 
+        {selectedPlaylistId ? (
+          <div className="flex gap-2 mb-4">
+            <button
+              className="px-3 py-1 bg-blue-500 text-white rounded"
+              onClick={async () => {
+                const newName = prompt("Enter new playlist name:");
+                if (!newName) return;
+
+                await fetch(`/api/playlists/${selectedPlaylistId}`, {
+                  method: "PUT",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ name: newName }),
+                });
+
+                onSelectPlaylist(selectedPlaylistId);
+              }}
+            >
+              Rename</button>  
+            <button
+              className="px-3 py-1 bg-red-500 text-white rounded"
+              onClick={async () => {
+                if (!confirm("Delete this playlist?")) return;
+
+                await fetch(`/api/playlists/${selectedPlaylistId}`, {
+                  method: "DELETE",
+                });
+                onSelectPlaylist("");
+              }}
+            >Delete</button>
+          </div>  
+        ) : null}
+
         {loading ? (
           <p className="py-6 text-sm text-slate-500">Loading playlist...</p>
         ) : null}
