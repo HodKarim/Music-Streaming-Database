@@ -220,6 +220,7 @@ export default function Home() {
             <PlaylistsPanel
               loading={loadingPlaylistSongs}
               onSelectPlaylist={setSelectedPlaylistId}
+              onRefreshPlaylists={refreshPlaylists}
               playlistSongs={playlistSongs}
               playlists={playlists}
               selectedPlaylistId={selectedPlaylistId}

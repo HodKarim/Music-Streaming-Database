@@ -4,6 +4,7 @@ import type { Playlist, PlaylistSong, User } from "@/types/music";
 type PlaylistsPanelProps = {
   loading: boolean;
   onSelectPlaylist: (playlistId: string) => void;
+  onRefreshPlaylists: () => void;
   playlistSongs: PlaylistSong[];
   playlists: Playlist[];
   selectedPlaylistId: string;
@@ -13,6 +14,7 @@ type PlaylistsPanelProps = {
 export function PlaylistsPanel({
   loading,
   onSelectPlaylist,
+  onRefreshPlaylists,
   playlistSongs,
   playlists,
   selectedPlaylistId,
@@ -62,29 +64,30 @@ export function PlaylistsPanel({
         {selectedPlaylistId ? (
           <div className="flex gap-2 mb-4">
             <button
-              className="px-3 py-1 bg-blue-500 text-white rounded"
+              className="h-10 rounded-md bg-teal-700 px-4 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-300"
               onClick={async () => {
                 const newName = prompt("Enter new playlist name:");
                 if (!newName) return;
 
-                await fetch(`/api/playlists/${selectedPlaylistId}`, {
+                await fetch(`http://127.0.0.1:8000/playlists/${selectedPlaylistId}`, {
                   method: "PUT",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({ name: newName }),
                 });
 
-                onSelectPlaylist(selectedPlaylistId);
+                await onRefreshPlaylists();
               }}
             >
               Rename</button>  
             <button
-              className="px-3 py-1 bg-red-500 text-white rounded"
+              className="h-10 rounded-md bg-rose-700 px-4 text-sm font-semibold text-white transition hover:bg-rose-800 disabled:cursor-not-allowed disabled:bg-slate-300"
               onClick={async () => {
                 if (!confirm("Delete this playlist?")) return;
 
-                await fetch(`/api/playlists/${selectedPlaylistId}`, {
+                await fetch(`http://127.0.0.1:8000/playlists/${selectedPlaylistId}`, {
                   method: "DELETE",
                 });
+                await onRefreshPlaylists();
                 onSelectPlaylist("");
               }}
             >Delete</button>
