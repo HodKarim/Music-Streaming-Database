@@ -112,7 +112,7 @@ def clear_songs(current_user: dict = Depends(require_admin)):
 
 
 @router.post("/seed")
-def seed_database(limit: int = 50, current_user: dict = Depends(require_admin)):
+def seed_database(limit: int = 500, current_user: dict = Depends(require_admin)):
     csv_path = Path(DEFAULT_CSV_PATH)
     stats = import_rows(csv_path, limit=limit)
     return {"message": "Database filled", "stats": stats}
