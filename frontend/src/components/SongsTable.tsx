@@ -1,14 +1,12 @@
 import { useMemo, useState } from "react";
 
 import { formatDuration } from "@/lib/format";
-import type { Album, Artist, Song, SongPayload } from "@/types/music";
+import type { Song, SongPayload } from "@/types/music";
 
 const SONGS_PER_PAGE = 10;
 
 type SongsTableProps = {
   addingSongId: number | null;
-  albums: Album[];
-  artists: Artist[];
   isAdmin: boolean;
   playlistSongIds: Set<number>;
   loading: boolean;
@@ -24,8 +22,6 @@ type SongsTableProps = {
 
 export function SongsTable({
   addingSongId,
-  albums,
-  artists,
   isAdmin,
   playlistSongIds,
   loading,
@@ -42,13 +38,19 @@ export function SongsTable({
   const [editingSongId, setEditingSongId] = useState<number | null>(null);
   const [formStatus, setFormStatus] = useState("");
   const emptySongForm = {
-    album_id: albums[0]?.album_id ?? 0,
-    artist_id: artists[0]?.artist_id ?? 0,
+    artist_name: "",
     duration: 180,
     genre: "",
     title: "",
   };
   const [songForm, setSongForm] = useState<SongPayload>(emptySongForm);
+  const genreOptions = useMemo(
+    () =>
+      Array.from(new Set(songs.map((song) => song.genre).filter(Boolean))).sort(
+        (left, right) => left.localeCompare(right),
+      ),
+    [songs],
+  );
   const totalPages = Math.max(Math.ceil(songs.length / SONGS_PER_PAGE), 1);
   const activePage = Math.min(currentPage, totalPages);
   const pageStart = (activePage - 1) * SONGS_PER_PAGE;
@@ -62,8 +64,7 @@ export function SongsTable({
     setEditingSongId(song.song_id);
     setFormStatus("");
     setSongForm({
-      album_id: song.album_id,
-      artist_id: song.artist_id,
+      artist_name: song.artist_name,
       duration: song.duration,
       genre: song.genre,
       title: song.title,
@@ -73,8 +74,7 @@ export function SongsTable({
   function resetForm() {
     setEditingSongId(null);
     setSongForm({
-      album_id: albums[0]?.album_id ?? 0,
-      artist_id: artists[0]?.artist_id ?? 0,
+      artist_name: "",
       duration: 180,
       genre: "",
       title: "",
@@ -85,15 +85,15 @@ export function SongsTable({
     event.preventDefault();
     const payload = {
       ...songForm,
-      album_id: songForm.album_id || albums[0]?.album_id || 0,
-      artist_id: songForm.artist_id || artists[0]?.artist_id || 0,
+      artist_name: songForm.artist_name.trim(),
+      genre: songForm.genre.trim(),
+      title: songForm.title.trim(),
     };
 
     if (
-      !payload.title.trim() ||
-      !payload.genre.trim() ||
-      !payload.album_id ||
-      !payload.artist_id ||
+      !payload.title ||
+      !payload.genre ||
+      !payload.artist_name ||
       payload.duration <= 0
     ) {
       setFormStatus("Complete the song details before saving.");
@@ -156,9 +156,15 @@ export function SongsTable({
               setSongForm((current) => ({ ...current, genre: event.target.value }))
             }
             placeholder="Genre"
+            list="song-genre-options"
             type="text"
             value={songForm.genre}
           />
+          <datalist id="song-genre-options">
+            {genreOptions.map((genre) => (
+              <option key={genre} value={genre} />
+            ))}
+          </datalist>
           <input
             className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm outline-none ring-teal-600 transition focus:ring-2"
             min={1}
@@ -172,40 +178,18 @@ export function SongsTable({
             type="number"
             value={songForm.duration}
           />
-          <select
-            className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm outline-none ring-teal-600 transition focus:ring-2"
+          <input
+            className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm outline-none ring-teal-600 transition focus:ring-2 xl:col-span-2"
             onChange={(event) =>
               setSongForm((current) => ({
                 ...current,
-                artist_id: Number(event.target.value),
+                artist_name: event.target.value,
               }))
             }
-            value={songForm.artist_id || artists[0]?.artist_id || 0}
-          >
-            <option value={0}>Artist</option>
-            {artists.map((artist) => (
-              <option key={artist.artist_id} value={artist.artist_id}>
-                {artist.name}
-              </option>
-            ))}
-          </select>
-          <select
-            className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm outline-none ring-teal-600 transition focus:ring-2"
-            onChange={(event) =>
-              setSongForm((current) => ({
-                ...current,
-                album_id: Number(event.target.value),
-              }))
-            }
-            value={songForm.album_id || albums[0]?.album_id || 0}
-          >
-            <option value={0}>Album</option>
-            {albums.map((album) => (
-              <option key={album.album_id} value={album.album_id}>
-                {album.title}
-              </option>
-            ))}
-          </select>
+            placeholder="Artist"
+            type="text"
+            value={songForm.artist_name}
+          />
           <div className="flex gap-2 xl:col-span-6">
             <button
               className="h-10 rounded-md bg-teal-700 px-4 text-sm font-semibold text-white transition hover:bg-teal-800"
@@ -284,15 +268,13 @@ export function SongsTable({
                         <button
                           className="rounded-md bg-rose-700 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-rose-800"
                           onClick={() => {
-                            if (confirm(`Delete "${song.title}"?`)) {
-                              onDeleteSong(song).catch((caughtError) =>
-                                setFormStatus(
-                                  caughtError instanceof Error
-                                    ? caughtError.message
-                                    : "Could not delete song.",
-                                ),
-                              );
-                            }
+                            onDeleteSong(song).catch((caughtError) =>
+                              setFormStatus(
+                                caughtError instanceof Error
+                                  ? caughtError.message
+                                  : "Could not delete song.",
+                              ),
+                            );
                           }}
                           type="button"
                         >

@@ -19,6 +19,13 @@ export type SongPayload = {
   title: string;
   duration: number;
   genre: string;
+  artist_name: string;
+};
+
+export type SongApiPayload = {
+  title: string;
+  duration: number;
+  genre: string;
   album_id: number;
   artist_id: number;
 };

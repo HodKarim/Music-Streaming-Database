@@ -62,11 +62,7 @@ export function DatabaseControls({ onChanged, token }: DatabaseControlsProps) {
         <button
           className="h-10 w-full rounded-md border border-rose-300 px-4 text-sm font-semibold text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-300"
           disabled={isWorking}
-          onClick={() => {
-            if (confirm("Clear the entire database, including users?")) {
-              runAction("clear");
-            }
-          }}
+          onClick={() => runAction("clear")}
           type="button"
         >
           Clear database

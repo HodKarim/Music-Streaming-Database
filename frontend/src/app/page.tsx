@@ -19,6 +19,7 @@ import type {
   Playlist,
   PlaylistSong,
   Song,
+  SongApiPayload,
   SongPayload,
   Summary,
   User,
@@ -32,8 +33,6 @@ export default function Home() {
   const [error, setError] = useState("");
   const [summary, setSummary] = useState<Summary | null>(null);
   const [songs, setSongs] = useState<Song[]>([]);
-  const [artists, setArtists] = useState<Artist[]>([]);
-  const [albums, setAlbums] = useState<Album[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [playlistSongs, setPlaylistSongs] = useState<PlaylistSong[]>([]);
@@ -146,15 +145,6 @@ export default function Home() {
     [],
   );
 
-  const loadAdminLookups = useCallback(async (activeToken: string) => {
-    const [artistData, albumData] = await Promise.all([
-      fetchJson<Artist[]>("/artists", { token: activeToken }),
-      fetchJson<Album[]>("/albums", { token: activeToken }),
-    ]);
-    setArtists(artistData);
-    setAlbums(albumData);
-  }, []);
-
   useEffect(() => {
     async function restoreSession() {
       try {
@@ -175,9 +165,6 @@ export default function Home() {
         await loadOverviewData(activeSession);
         await loadSongsData(activeSession.token, "");
 
-        if (user.is_admin) {
-          await loadAdminLookups(activeSession.token);
-        }
       } catch (caughtError) {
         localStorage.removeItem(SESSION_STORAGE_KEY);
         setSession(null);
@@ -191,7 +178,7 @@ export default function Home() {
     }
 
     restoreSession();
-  }, [loadAdminLookups, loadOverviewData, loadSongsData, loadUsers]);
+  }, [loadOverviewData, loadSongsData, loadUsers]);
 
   useEffect(() => {
     async function loadSongs() {
@@ -245,9 +232,6 @@ export default function Home() {
     await loadOverviewData(nextSession);
     await loadSongsData(nextSession.token, search);
 
-    if (nextSession.user.is_admin) {
-      await loadAdminLookups(nextSession.token);
-    }
   }
 
   async function handleSwitchAccount() {
@@ -274,7 +258,6 @@ export default function Home() {
       await loadUsers();
       await loadOverviewData(session);
       await loadSongsData(session.token, search);
-      await loadAdminLookups(session.token);
     } catch (caughtError) {
       localStorage.removeItem(SESSION_STORAGE_KEY);
       setSession(null);
@@ -347,17 +330,74 @@ export default function Home() {
   }
 
   async function handleCreateSong(song: SongPayload) {
-    await postJson<Song, SongPayload>("/songs", song, { token });
+    await postJson<Song, SongApiPayload>(
+      "/songs",
+      await resolveSongPayload(song),
+      { token },
+    );
     await refreshSummary();
     await loadSongsData(token, search);
   }
 
   async function handleUpdateSong(songId: number, song: SongPayload) {
-    await postJson<Song, SongPayload>(`/songs/${songId}`, song, {
-      method: "PUT",
+    await postJson<Song, SongApiPayload>(
+      `/songs/${songId}`,
+      await resolveSongPayload(song),
+      {
+        method: "PUT",
+        token,
+      },
+    );
+    await loadSongsData(token, search);
+  }
+
+  async function resolveSongPayload(song: SongPayload): Promise<SongApiPayload> {
+    const artistName = song.artist_name.trim();
+    const genre = song.genre.trim();
+    const albumTitle = `${genre} Collection`;
+
+    const matchingArtists = await fetchJson<Artist[]>("/artists", {
       token,
     });
-    await loadSongsData(token, search);
+    const existingArtist = matchingArtists.find(
+      (artist) => artist.name.toLowerCase() === artistName.toLowerCase(),
+    );
+    const artist =
+      existingArtist ??
+      (await postJson<Artist, { name: string }>(
+        "/artists",
+        { name: artistName },
+        { token },
+      ));
+
+    const matchingAlbums = await fetchJson<Album[]>("/albums", { token });
+    const existingAlbum = matchingAlbums.find(
+      (album) =>
+        album.artist_id === artist.artist_id &&
+        album.title.toLowerCase() === albumTitle.toLowerCase(),
+    );
+    const album =
+      existingAlbum ??
+      (await postJson<
+        Album,
+        { title: string; release_date: string | null; artist_id: number }
+      >(
+        "/albums",
+        {
+          artist_id: artist.artist_id,
+          release_date: null,
+          title: albumTitle,
+        },
+        { token },
+      ));
+
+    return {
+      album_id: album.album_id,
+      artist_id: artist.artist_id,
+      duration: song.duration,
+      genre,
+      title: song.title.trim(),
+    };
   }
 
   async function handleDeleteSong(song: Song) {
@@ -397,8 +437,6 @@ export default function Home() {
         <section className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
           <SongsTable
             addingSongId={addingSongId}
-            albums={albums}
-            artists={artists}
             isAdmin={currentUser.is_admin}
             playlistSongIds={playlistSongIds}
             loading={loadingSongs}

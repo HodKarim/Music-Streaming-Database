@@ -64,13 +64,19 @@ export function PlaylistsPanel({
           </div>
         ) : null}
 
-        {selectedPlaylistId ? (
-          <div className="flex gap-2 mb-4">
-            <button
-              className="h-10 rounded-md bg-teal-700 px-4 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-300"
-              onClick={async () => {
-                const newName = prompt("Enter new playlist name:");
-                if (!newName) return;
+        {selectedPlaylist ? (
+          <div className="mb-4 grid gap-2">
+            <form
+              className="flex gap-2"
+              key={selectedPlaylist.playlist_id}
+              onSubmit={async (event) => {
+                event.preventDefault();
+                const formData = new FormData(event.currentTarget);
+                const newName = String(formData.get("playlistName") ?? "").trim();
+
+                if (!newName) {
+                  return;
+                }
 
                 await postJson<Playlist, { name: string }>(
                   `/playlists/${selectedPlaylistId}`,
@@ -81,12 +87,22 @@ export function PlaylistsPanel({
                 await onRefreshPlaylists("");
               }}
             >
-              Rename</button>  
+              <input
+                className="h-10 min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-3 text-sm outline-none ring-teal-600 transition focus:ring-2"
+                defaultValue={selectedPlaylist.name}
+                name="playlistName"
+                type="text"
+              />
+              <button
+                className="h-10 rounded-md bg-teal-700 px-4 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+                type="submit"
+              >
+                Rename
+              </button>
+            </form>
             <button
               className="h-10 rounded-md bg-rose-700 px-4 text-sm font-semibold text-white transition hover:bg-rose-800 disabled:cursor-not-allowed disabled:bg-slate-300"
               onClick={async () => {
-                if (!confirm("Delete this playlist?")) return;
-
                 onSelectPlaylist("");
                 await postEmpty(`/playlists/${selectedPlaylistId}`, {
                   method: "DELETE",
@@ -95,7 +111,7 @@ export function PlaylistsPanel({
                 await onRefreshPlaylists("");
               }}
             >Delete</button>
-          </div>  
+          </div>
         ) : null}
 
         {loading ? (
