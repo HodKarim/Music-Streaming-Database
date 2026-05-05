@@ -1,7 +1,8 @@
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
+from backend.auth import get_current_user, require_admin
 from backend.database import execute_query, execute_transaction, fetch_all, fetch_one
 from backend.schemas import SongCreate, SongUpdate
 
@@ -14,6 +15,7 @@ def get_songs(
     search: Optional[str] = Query(default=None),
     genre: Optional[str] = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
+    current_user: dict = Depends(get_current_user),
 ):
     query = """
         SELECT
@@ -39,7 +41,11 @@ def get_songs(
 
 
 @router.get("/{song_id}")
-def get_song(song_id: int):
+def get_song(song_id: int, current_user: dict = Depends(get_current_user)):
+    return find_song(song_id)
+
+
+def find_song(song_id: int):
     song = fetch_one(
         """
         SELECT
@@ -66,7 +72,7 @@ def get_song(song_id: int):
 
 
 @router.post("")
-def create_song(song: SongCreate):
+def create_song(song: SongCreate, current_user: dict = Depends(require_admin)):
     song_id = execute_query(
         """
         INSERT INTO songs (title, duration, genre, album_id, artist_id)
@@ -79,8 +85,12 @@ def create_song(song: SongCreate):
 
 
 @router.put("/{song_id}")
-def update_song(song_id: int, song: SongUpdate):
-    get_song(song_id)
+def update_song(
+    song_id: int,
+    song: SongUpdate,
+    current_user: dict = Depends(require_admin),
+):
+    find_song(song_id)
 
     execute_query(
         """
@@ -106,8 +116,8 @@ def update_song(song_id: int, song: SongUpdate):
 
 
 @router.delete("/{song_id}")
-def delete_song(song_id: int):
-    get_song(song_id)
+def delete_song(song_id: int, current_user: dict = Depends(require_admin)):
+    find_song(song_id)
 
     execute_transaction(
         [

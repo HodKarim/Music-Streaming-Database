@@ -9,8 +9,25 @@ export type Song = {
   title: string;
   duration: number;
   genre: string;
+  album_id: number;
+  artist_id: number;
   artist_name: string;
   album_title: string;
+};
+
+export type SongPayload = {
+  title: string;
+  duration: number;
+  genre: string;
+  artist_name: string;
+};
+
+export type SongApiPayload = {
+  title: string;
+  duration: number;
+  genre: string;
+  album_id: number;
+  artist_id: number;
 };
 
 export type User = {
@@ -18,6 +35,36 @@ export type User = {
   name: string;
   email: string;
   is_admin: boolean;
+};
+
+export type AuthUser = User;
+
+export type AuthSession = {
+  token: string;
+  user: AuthUser;
+};
+
+export type LoginPayload = {
+  email: string;
+  password: string;
+};
+
+export type SignupPayload = LoginPayload & {
+  name: string;
+  is_admin: boolean;
+};
+
+export type Artist = {
+  artist_id: number;
+  name: string;
+};
+
+export type Album = {
+  album_id: number;
+  title: string;
+  artist_id: number;
+  artist_name: string;
+  release_date: string | null;
 };
 
 export type Playlist = {

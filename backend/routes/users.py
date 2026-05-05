@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException
 
+from backend.auth import hash_password, public_user
 from backend.database import execute_query, fetch_all, fetch_one
 from backend.schemas import UserCreate
 
@@ -9,26 +10,13 @@ router = APIRouter(prefix="/users", tags=["users"])
 
 @router.get("")
 def get_users():
-    users = fetch_all(
+    return fetch_all(
         """
         SELECT user_id, name, email, is_admin
         FROM users
         ORDER BY user_id
         """
     )
-
-    if users:
-        return users
-
-    user_id = execute_query(
-        """
-        INSERT INTO users (name, email, password, is_admin)
-        VALUES (%s, %s, %s, %s)
-        """,
-        ("Demo User", "demo@example.com", "demo-password", False),
-    )
-
-    return [get_user(user_id)]
 
 
 @router.get("/{user_id}")
@@ -55,7 +43,7 @@ def create_user(user: UserCreate):
         INSERT INTO users (name, email, password, is_admin)
         VALUES (%s, %s, %s, %s)
         """,
-        (user.name, user.email, user.password, user.is_admin),
+        (user.name, user.email, hash_password(user.password), user.is_admin),
     )
 
-    return get_user(user_id)
+    return public_user(get_user(user_id))

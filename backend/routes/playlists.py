@@ -1,7 +1,8 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from backend.auth import can_manage_user_resource, get_current_user
 from backend.database import execute_query, execute_transaction, fetch_all, fetch_one
-from backend.routes.songs import get_song
+from backend.routes.songs import find_song
 from backend.schemas import PlaylistCreate, PlaylistUpdate
 
 
@@ -9,7 +10,10 @@ router = APIRouter(tags=["playlists"])
 
 
 @router.get("/users/{user_id}/playlists")
-def get_user_playlists(user_id: int):
+def get_user_playlists(user_id: int, current_user: dict = Depends(get_current_user)):
+    if not can_manage_user_resource(current_user, user_id):
+        raise HTTPException(403, detail="Cannot view another user's playlists")
+
     return fetch_all(
         """
         SELECT playlist_id, user_id, name, created_date
@@ -39,7 +43,13 @@ def get_playlist(playlist_id: int):
 
 
 @router.post("/playlists")
-def create_playlist(playlist: PlaylistCreate):
+def create_playlist(
+    playlist: PlaylistCreate,
+    current_user: dict = Depends(get_current_user),
+):
+    if not can_manage_user_resource(current_user, playlist.user_id):
+        raise HTTPException(403, detail="Cannot create playlists for another user")
+
     playlist_id = execute_query(
         """
         INSERT INTO playlists (user_id, name, created_date)
@@ -52,8 +62,14 @@ def create_playlist(playlist: PlaylistCreate):
 
 
 @router.put("/playlists/{playlist_id}")
-def update_playlist(playlist_id: int, playlist: PlaylistUpdate):
+def update_playlist(
+    playlist_id: int,
+    playlist: PlaylistUpdate,
+    current_user: dict = Depends(get_current_user),
+):
     existing_playlist = get_playlist(playlist_id)
+    if not can_manage_user_resource(current_user, existing_playlist["user_id"]):
+        raise HTTPException(403, detail="Cannot edit another user's playlist")
 
     execute_query(
         """
@@ -68,8 +84,13 @@ def update_playlist(playlist_id: int, playlist: PlaylistUpdate):
 
 
 @router.delete("/playlists/{playlist_id}")
-def delete_playlist(playlist_id: int):
-    get_playlist(playlist_id)
+def delete_playlist(
+    playlist_id: int,
+    current_user: dict = Depends(get_current_user),
+):
+    playlist = get_playlist(playlist_id)
+    if not can_manage_user_resource(current_user, playlist["user_id"]):
+        raise HTTPException(403, detail="Cannot delete another user's playlist")
 
     execute_transaction(
         [
@@ -92,7 +113,14 @@ def delete_playlist(playlist_id: int):
 
 
 @router.get("/playlists/{playlist_id}/songs")
-def get_playlist_songs(playlist_id: int):
+def get_playlist_songs(
+    playlist_id: int,
+    current_user: dict = Depends(get_current_user),
+):
+    playlist = get_playlist(playlist_id)
+    if not can_manage_user_resource(current_user, playlist["user_id"]):
+        raise HTTPException(403, detail="Cannot view another user's playlist")
+
     return fetch_all(
         """
         SELECT
@@ -116,9 +144,15 @@ def get_playlist_songs(playlist_id: int):
 
 
 @router.post("/playlists/{playlist_id}/songs/{song_id}")
-def add_song_to_playlist(playlist_id: int, song_id: int):
-    get_playlist(playlist_id)
-    get_song(song_id)
+def add_song_to_playlist(
+    playlist_id: int,
+    song_id: int,
+    current_user: dict = Depends(get_current_user),
+):
+    playlist = get_playlist(playlist_id)
+    if not can_manage_user_resource(current_user, playlist["user_id"]):
+        raise HTTPException(403, detail="Cannot edit another user's playlist")
+    find_song(song_id)
 
     execute_query(
         """
@@ -132,7 +166,15 @@ def add_song_to_playlist(playlist_id: int, song_id: int):
 
 
 @router.delete("/playlists/{playlist_id}/songs/{song_id}")
-def remove_song_from_playlist(playlist_id: int, song_id: int):
+def remove_song_from_playlist(
+    playlist_id: int,
+    song_id: int,
+    current_user: dict = Depends(get_current_user),
+):
+    playlist = get_playlist(playlist_id)
+    if not can_manage_user_resource(current_user, playlist["user_id"]):
+        raise HTTPException(403, detail="Cannot edit another user's playlist")
+
     execute_query(
         """
         DELETE FROM playlist_songs

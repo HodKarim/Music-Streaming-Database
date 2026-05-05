@@ -1,21 +1,26 @@
 import { formatDuration } from "@/lib/format";
+import { postEmpty, postJson } from "@/lib/api";
 import type { Playlist, PlaylistSong, User } from "@/types/music";
 
 type PlaylistsPanelProps = {
   loading: boolean;
   onSelectPlaylist: (playlistId: string) => void;
+  onRefreshPlaylists: (nextSelectedPlaylistId?: string) => Promise<void>;
   playlistSongs: PlaylistSong[];
   playlists: Playlist[];
   selectedPlaylistId: string;
+  token: string;
   users: User[];
 };
 
 export function PlaylistsPanel({
   loading,
   onSelectPlaylist,
+  onRefreshPlaylists,
   playlistSongs,
   playlists,
   selectedPlaylistId,
+  token,
   users,
 }: PlaylistsPanelProps) {
   const selectedPlaylist = playlists.find(
@@ -59,6 +64,56 @@ export function PlaylistsPanel({
           </div>
         ) : null}
 
+        {selectedPlaylist ? (
+          <div className="mb-4 grid gap-2">
+            <form
+              className="flex gap-2"
+              key={selectedPlaylist.playlist_id}
+              onSubmit={async (event) => {
+                event.preventDefault();
+                const formData = new FormData(event.currentTarget);
+                const newName = String(formData.get("playlistName") ?? "").trim();
+
+                if (!newName) {
+                  return;
+                }
+
+                await postJson<Playlist, { name: string }>(
+                  `/playlists/${selectedPlaylistId}`,
+                  { name: newName },
+                  { method: "PUT", token },
+                );
+
+                await onRefreshPlaylists("");
+              }}
+            >
+              <input
+                className="h-10 min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-3 text-sm outline-none ring-teal-600 transition focus:ring-2"
+                defaultValue={selectedPlaylist.name}
+                name="playlistName"
+                type="text"
+              />
+              <button
+                className="h-10 rounded-md bg-teal-700 px-4 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+                type="submit"
+              >
+                Rename
+              </button>
+            </form>
+            <button
+              className="h-10 rounded-md bg-rose-700 px-4 text-sm font-semibold text-white transition hover:bg-rose-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+              onClick={async () => {
+                onSelectPlaylist("");
+                await postEmpty(`/playlists/${selectedPlaylistId}`, {
+                  method: "DELETE",
+                  token,
+                });
+                await onRefreshPlaylists("");
+              }}
+            >Delete</button>
+          </div>
+        ) : null}
+
         {loading ? (
           <p className="py-6 text-sm text-slate-500">Loading playlist...</p>
         ) : null}
@@ -81,9 +136,24 @@ export function PlaylistsPanel({
               <div className="grid gap-1 py-3 text-sm" key={song.song_id}>
                 <div className="flex items-center justify-between gap-3">
                   <p className="font-medium text-slate-950">{song.title}</p>
-                  <span className="font-mono text-xs text-slate-500">
-                    {formatDuration(song.duration)}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs text-slate-500">
+                      {formatDuration(song.duration)}
+                    </span>
+                    <button
+                      className="rounded-md border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                      onClick={async () => {
+                        await postEmpty(
+                          `/playlists/${selectedPlaylistId}/songs/${song.song_id}`,
+                          { method: "DELETE", token },
+                        );
+                        await onRefreshPlaylists();
+                      }}
+                      type="button"
+                    >
+                      Remove
+                    </button>
+                  </div>
                 </div>
                 <p className="text-slate-600">
                   {song.artist_name} - {song.album_title}

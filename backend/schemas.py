@@ -11,6 +11,11 @@ class UserCreate(BaseModel):
     is_admin: bool = False
 
 
+class UserLogin(BaseModel):
+    email: str
+    password: str
+
+
 class ArtistCreate(BaseModel):
     name: str
 

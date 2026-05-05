@@ -1,27 +1,38 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 
+import { AccountPanel } from "@/components/AccountPanel";
 import { CountCards } from "@/components/CountCards";
 import { CreatePlaylistForm } from "@/components/CreatePlaylistForm";
 import { DatabaseControls } from "@/components/DatabaseControls";
 import { DashboardHeader } from "@/components/DashboardHeader";
 import { PlaylistsPanel } from "@/components/PlaylistsPanel";
 import { SongsTable } from "@/components/SongsTable";
-import { fetchJson, postEmpty } from "@/lib/api";
+import { fetchJson, postEmpty, postJson } from "@/lib/api";
 import type {
+  Album,
   ApiStatus,
+  Artist,
+  AuthSession,
+  AuthUser,
   Playlist,
   PlaylistSong,
   Song,
+  SongApiPayload,
+  SongPayload,
   Summary,
   User,
 } from "@/types/music";
 
+const SESSION_STORAGE_KEY = "music_streaming_session";
+
 export default function Home() {
-  const router = useRouter();
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [session, setSession] = useState<AuthSession | null>(null);
+
+  const token = session?.token ?? "";
+  const currentUser = session?.user ?? null;
+
   const [status, setStatus] = useState<ApiStatus>("checking");
   const [error, setError] = useState("");
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -35,89 +46,154 @@ export default function Home() {
   const [loadingSongs, setLoadingSongs] = useState(false);
   const [loadingPlaylistSongs, setLoadingPlaylistSongs] = useState(false);
 
-  useEffect(() => {
-    const storedUser = localStorage.getItem("currentUser");
-
-    if (!storedUser) {
-      router.push("/login");
-      return;
-    }
-
-    setCurrentUser(JSON.parse(storedUser));
-  }, [router]);
-
-  async function refreshSummary() {
-    setSummary(await fetchJson<Summary>("/dashboard/summary"));
-  }
-
-  const loadPlaylists = useCallback(async (userList: User[]) => {
-    const userPlaylists = await Promise.all(
-      userList.map((user) =>
-        fetchJson<Playlist[]>(`/users/${user.user_id}/playlists`),
-      ),
-    );
-
-    return userPlaylists.flat();
+  const loadUsers = useCallback(async () => {
+    const userData = await fetchJson<User[]>("/users");
+    setUsers(userData);
+    return userData;
   }, []);
 
-  const loadOverviewData = useCallback(async () => {
-    if (!currentUser) return;
+  const loadPlaylists = useCallback(
+    async (userList: User[], activeUser: AuthUser, activeToken: string) => {
+      const visibleUsers = activeUser.is_admin
+        ? userList
+        : userList.filter((user) => user.user_id === activeUser.user_id);
 
-    setStatus("checking");
-    const [root, summaryData, userData] = await Promise.all([
-      fetchJson<{ message: string }>("/"),
-      fetchJson<Summary>("/dashboard/summary"),
-      fetchJson<User[]>("/users"),
-    ]);
+      const userPlaylists = await Promise.all(
+        visibleUsers.map((user) =>
+          fetchJson<Playlist[]>(`/users/${user.user_id}/playlists`, {
+            token: activeToken,
+          }),
+        ),
+      );
 
-    const playlistData = await loadPlaylists([currentUser]);
+      return userPlaylists.flat();
+    },
+    [],
+  );
 
-    setSummary(summaryData);
-    setUsers(userData);
-    setPlaylists(playlistData);
-    setSelectedPlaylistId(
-      playlistData.length === 1 ? String(playlistData[0].playlist_id) : "",
+  const loadSelectedPlaylistSongs = useCallback(
+    async (playlistId: string, activeToken: string) => {
+      if (!playlistId) {
+        setPlaylistSongs([]);
+        return;
+      }
+
+      setLoadingPlaylistSongs(true);
+      setPlaylistSongs(
+        await fetchJson<PlaylistSong[]>(`/playlists/${playlistId}/songs`, {
+          token: activeToken,
+        }),
+      );
+      setLoadingPlaylistSongs(false);
+    },
+    [],
+  );
+
+  async function refreshSummary(activeToken = token) {
+    setSummary(
+      await fetchJson<Summary>("/dashboard/summary", { token: activeToken }),
     );
-    setStatus(root.message ? "connected" : "error");
-    setError("");
-  }, [currentUser, loadPlaylists]);
+  }
 
-  const loadSongsData = useCallback(async () => {
-    const params = new URLSearchParams({ limit: "50" });
+  const loadOverviewData = useCallback(
+    async (activeSession: AuthSession) => {
+      setStatus("checking");
 
-    if (search.trim()) {
-      params.set("search", search.trim());
-    }
+      const [root, summaryData, userData] = await Promise.all([
+        fetchJson<{ message: string }>("/"),
+        fetchJson<Summary>("/dashboard/summary", {
+          token: activeSession.token,
+        }),
+        fetchJson<User[]>("/users"),
+      ]);
 
-    setLoadingSongs(true);
-    setSongs(await fetchJson<Song[]>(`/songs?${params.toString()}`));
-    setError("");
-    setLoadingSongs(false);
-  }, [search]);
+      const playlistData = await loadPlaylists(
+        userData,
+        activeSession.user,
+        activeSession.token,
+      );
+
+      setSummary(summaryData);
+      setUsers(userData);
+      setPlaylists(playlistData);
+      setSelectedPlaylistId(
+        playlistData.length === 1 ? String(playlistData[0].playlist_id) : "",
+      );
+      setStatus(root.message ? "connected" : "error");
+      setError("");
+    },
+    [loadPlaylists],
+  );
+
+  const loadSongsData = useCallback(
+    async (activeToken: string, activeSearch: string) => {
+      if (!activeToken) {
+        return;
+      }
+
+      const params = new URLSearchParams({ limit: "50" });
+
+      if (activeSearch.trim()) {
+        params.set("search", activeSearch.trim());
+      }
+
+      setLoadingSongs(true);
+      setSongs(
+        await fetchJson<Song[]>(`/songs?${params.toString()}`, {
+          token: activeToken,
+        }),
+      );
+      setError("");
+      setLoadingSongs(false);
+    },
+    [],
+  );
 
   useEffect(() => {
-    if (!currentUser) return;
-
-    async function loadOverview() {
+    async function restoreSession() {
       try {
-        await loadOverviewData();
+        await loadUsers();
+
+        const storedSession = localStorage.getItem(SESSION_STORAGE_KEY);
+
+        if (!storedSession) {
+          setStatus("connected");
+          return;
+        }
+
+        const parsedSession = JSON.parse(storedSession) as AuthSession;
+        const user = await fetchJson<AuthUser>("/auth/me", {
+          token: parsedSession.token,
+        });
+
+        const activeSession = { token: parsedSession.token, user };
+
+        setSession(activeSession);
+        await loadOverviewData(activeSession);
+        await loadSongsData(activeSession.token, "");
       } catch (caughtError) {
-        setStatus("error");
+        localStorage.removeItem(SESSION_STORAGE_KEY);
+        setSession(null);
+        setStatus("connected");
         setError(
           caughtError instanceof Error
             ? caughtError.message
-            : "Could not reach the API",
+            : "Could not restore session.",
         );
       }
     }
 
-    loadOverview();
-  }, [currentUser, loadOverviewData]);
+    restoreSession();
+  }, [loadOverviewData, loadSongsData, loadUsers]);
 
   useEffect(() => {
     async function loadSongs() {
+      if (!session) {
+        return;
+      }
+
       try {
-        await loadSongsData();
+        await loadSongsData(session.token, search);
       } catch (caughtError) {
         setStatus("error");
         setError(
@@ -131,28 +207,16 @@ export default function Home() {
     }
 
     loadSongs();
-  }, [loadSongsData]);
-
-  async function handleDatabaseChanged() {
-    setPlaylistSongs([]);
-    await loadOverviewData();
-    await loadSongsData();
-  }
+  }, [loadSongsData, search, session]);
 
   useEffect(() => {
     async function loadPlaylistSongs() {
-      if (!selectedPlaylistId) {
-        setPlaylistSongs([]);
+      if (!session) {
         return;
       }
 
       try {
-        setLoadingPlaylistSongs(true);
-        setPlaylistSongs(
-          await fetchJson<PlaylistSong[]>(
-            `/playlists/${selectedPlaylistId}/songs`,
-          ),
-        );
+        await loadSelectedPlaylistSongs(selectedPlaylistId, session.token);
         setError("");
       } catch (caughtError) {
         setError(
@@ -166,14 +230,74 @@ export default function Home() {
     }
 
     loadPlaylistSongs();
-  }, [selectedPlaylistId]);
+  }, [loadSelectedPlaylistSongs, selectedPlaylistId, session]);
+
+  async function handleAuthenticated(nextSession: AuthSession) {
+    localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(nextSession));
+    setSession(nextSession);
+    setError("");
+    await loadOverviewData(nextSession);
+    await loadSongsData(nextSession.token, search);
+  }
+
+  async function handleSwitchAccount() {
+    if (session) {
+      await postEmpty("/auth/logout", { token: session.token }).catch(() => null);
+    }
+
+    localStorage.removeItem(SESSION_STORAGE_KEY);
+    setSession(null);
+    setSummary(null);
+    setSongs([]);
+    setPlaylists([]);
+    setPlaylistSongs([]);
+    setSelectedPlaylistId("");
+    await loadUsers();
+  }
+
+  async function handleDatabaseChanged() {
+    if (!session) {
+      return;
+    }
+
+    try {
+      setPlaylistSongs([]);
+      await loadUsers();
+      await loadOverviewData(session);
+      await loadSongsData(session.token, search);
+    } catch (caughtError) {
+      localStorage.removeItem(SESSION_STORAGE_KEY);
+      setSession(null);
+      setSummary(null);
+      setSongs([]);
+      setPlaylists([]);
+      setPlaylistSongs([]);
+      await loadUsers();
+      throw caughtError;
+    }
+  }
 
   async function refreshPlaylists(nextSelectedPlaylistId = selectedPlaylistId) {
-    const playlistData = currentUser
-    ? await loadPlaylists([currentUser])
-    : [];
+    if (!session) {
+      return;
+    }
+
+    const userData = await loadUsers();
+    const playlistData = await loadPlaylists(userData, session.user, session.token);
+    const validSelectedPlaylistId = playlistData.some(
+      (playlist) => String(playlist.playlist_id) === nextSelectedPlaylistId,
+    )
+      ? nextSelectedPlaylistId
+      : "";
+
     setPlaylists(playlistData);
-    setSelectedPlaylistId(nextSelectedPlaylistId);
+    setSelectedPlaylistId(validSelectedPlaylistId);
+
+    if (validSelectedPlaylistId) {
+      await loadSelectedPlaylistSongs(validSelectedPlaylistId, session.token);
+    } else {
+      setPlaylistSongs([]);
+    }
   }
 
   function handlePlaylistCreated(playlist: Playlist) {
@@ -188,7 +312,7 @@ export default function Home() {
   }
 
   async function handleAddToPlaylist(song: Song) {
-    if (!selectedPlaylistId) {
+    if (!selectedPlaylistId || !session) {
       setError("Select a playlist before adding songs.");
       return;
     }
@@ -197,10 +321,9 @@ export default function Home() {
       setAddingSongId(song.song_id);
       await postEmpty<{ message: string }>(
         `/playlists/${selectedPlaylistId}/songs/${song.song_id}`,
+        { token: session.token },
       );
-      setPlaylistSongs(
-        await fetchJson<PlaylistSong[]>(`/playlists/${selectedPlaylistId}/songs`),
-      );
+      await loadSelectedPlaylistSongs(selectedPlaylistId, session.token);
       setError("");
     } catch (caughtError) {
       setError(
@@ -213,62 +336,154 @@ export default function Home() {
     }
   }
 
+  async function handleCreateSong(song: SongPayload) {
+    await postJson<Song, SongApiPayload>(
+      "/songs",
+      await resolveSongPayload(song),
+      { token },
+    );
+    await refreshSummary();
+    await loadSongsData(token, search);
+  }
+
+  async function handleUpdateSong(songId: number, song: SongPayload) {
+    await postJson<Song, SongApiPayload>(
+      `/songs/${songId}`,
+      await resolveSongPayload(song),
+      {
+        method: "PUT",
+        token,
+      },
+    );
+    await loadSongsData(token, search);
+  }
+
+  async function resolveSongPayload(song: SongPayload): Promise<SongApiPayload> {
+    const artistName = song.artist_name.trim();
+    const genre = song.genre.trim();
+    const albumTitle = `${genre} Collection`;
+
+    const matchingArtists = await fetchJson<Artist[]>("/artists", {
+      token,
+    });
+    const existingArtist = matchingArtists.find(
+      (artist) => artist.name.toLowerCase() === artistName.toLowerCase(),
+    );
+    const artist =
+      existingArtist ??
+      (await postJson<Artist, { name: string }>(
+        "/artists",
+        { name: artistName },
+        { token },
+      ));
+
+    const matchingAlbums = await fetchJson<Album[]>("/albums", { token });
+    const existingAlbum = matchingAlbums.find(
+      (album) =>
+        album.artist_id === artist.artist_id &&
+        album.title.toLowerCase() === albumTitle.toLowerCase(),
+    );
+    const album =
+      existingAlbum ??
+      (await postJson<
+        Album,
+        { title: string; release_date: string | null; artist_id: number }
+      >(
+        "/albums",
+        {
+          artist_id: artist.artist_id,
+          release_date: null,
+          title: albumTitle,
+        },
+        { token },
+      ));
+
+    return {
+      album_id: album.album_id,
+      artist_id: artist.artist_id,
+      duration: song.duration,
+      genre,
+      title: song.title.trim(),
+    };
+  }
+
+  async function handleDeleteSong(song: Song) {
+    await postEmpty(`/songs/${song.song_id}`, { method: "DELETE", token });
+    await refreshSummary();
+    await loadSongsData(token, search);
+
+    if (selectedPlaylistId) {
+      await loadSelectedPlaylistSongs(selectedPlaylistId, token);
+    }
+  }
+
   const playlistSongIds = new Set(playlistSongs.map((song) => song.song_id));
 
-  function handleLogout() {
-    localStorage.removeItem("currentUser");
-    router.push("/login");
+  if (!session || !currentUser) {
+    return (
+      <AccountPanel
+        error={error}
+        knownUsers={users}
+        onAuthenticated={handleAuthenticated}
+        onRefreshUsers={loadUsers}
+      />
+    );
   }
 
   return (
     <main className="min-h-screen bg-[#f5f7fb] text-slate-950">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
-        <DashboardHeader error={error} status={status} />
-
-        {currentUser && (
-          <div className="flex items-center justify-between rounded-2xl bg-white p-4 shadow-sm">
-            <div>
-              <p className="text-sm text-slate-500">Logged in as</p>
-              <p className="font-semibold">{currentUser.name}</p>
-            </div>
-            <button
-              onClick={handleLogout}
-              className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
-            >
-              Logout
-            </button>
-          </div>
-        )}
+        <DashboardHeader
+          error={error}
+          onSwitchAccount={handleSwitchAccount}
+          status={status}
+          user={currentUser}
+        />
 
         <CountCards counts={summary?.counts} />
 
         <section className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
           <SongsTable
             addingSongId={addingSongId}
+            isAdmin={currentUser.is_admin}
             playlistSongIds={playlistSongIds}
             loading={loadingSongs}
             onAddToPlaylist={handleAddToPlaylist}
+            onCreateSong={handleCreateSong}
+            onDeleteSong={handleDeleteSong}
             onSearchChange={setSearch}
+            onUpdateSong={handleUpdateSong}
             search={search}
             selectedPlaylistId={selectedPlaylistId}
             songs={songs}
           />
+
           <div className="flex flex-col gap-6">
-            <DatabaseControls onChanged={handleDatabaseChanged} />
             <CreatePlaylistForm
+              currentUser={currentUser}
               onCreated={handlePlaylistCreated}
-              users={currentUser ? [currentUser] : []}
+              token={session.token}
             />
+
             <PlaylistsPanel
               loading={loadingPlaylistSongs}
               onSelectPlaylist={setSelectedPlaylistId}
+              onRefreshPlaylists={refreshPlaylists}
               playlistSongs={playlistSongs}
               playlists={playlists}
               selectedPlaylistId={selectedPlaylistId}
+              token={session.token}
               users={users}
             />
           </div>
         </section>
+
+        {currentUser.is_admin ? (
+          <DatabaseControls
+            onChanged={handleDatabaseChanged}
+            token={session.token}
+          />
+        ) : null}
       </div>
     </main>
   );
