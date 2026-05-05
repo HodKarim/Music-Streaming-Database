@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { CountCards } from "@/components/CountCards";
 import { CreatePlaylistForm } from "@/components/CreatePlaylistForm";
@@ -19,6 +20,8 @@ import type {
 } from "@/types/music";
 
 export default function Home() {
+  const router = useRouter();
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [status, setStatus] = useState<ApiStatus>("checking");
   const [error, setError] = useState("");
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -31,6 +34,17 @@ export default function Home() {
   const [addingSongId, setAddingSongId] = useState<number | null>(null);
   const [loadingSongs, setLoadingSongs] = useState(false);
   const [loadingPlaylistSongs, setLoadingPlaylistSongs] = useState(false);
+
+  useEffect(() => {
+    const storedUser = localStorage.getItem("currentUser");
+
+    if (!storedUser) {
+      router.push("/login");
+      return;
+    }
+
+    setCurrentUser(JSON.parse(storedUser));
+  }, [router]);
 
   async function refreshSummary() {
     setSummary(await fetchJson<Summary>("/dashboard/summary"));
@@ -47,13 +61,16 @@ export default function Home() {
   }, []);
 
   const loadOverviewData = useCallback(async () => {
+    if (!currentUser) return;
+
     setStatus("checking");
     const [root, summaryData, userData] = await Promise.all([
       fetchJson<{ message: string }>("/"),
       fetchJson<Summary>("/dashboard/summary"),
       fetchJson<User[]>("/users"),
     ]);
-    const playlistData = await loadPlaylists(userData);
+
+    const playlistData = await loadPlaylists([currentUser]);
 
     setSummary(summaryData);
     setUsers(userData);
@@ -63,7 +80,7 @@ export default function Home() {
     );
     setStatus(root.message ? "connected" : "error");
     setError("");
-  }, [loadPlaylists]);
+  }, [currentUser, loadPlaylists]);
 
   const loadSongsData = useCallback(async () => {
     const params = new URLSearchParams({ limit: "50" });
@@ -79,6 +96,8 @@ export default function Home() {
   }, [search]);
 
   useEffect(() => {
+    if (!currentUser) return;
+
     async function loadOverview() {
       try {
         await loadOverviewData();
@@ -93,7 +112,7 @@ export default function Home() {
     }
 
     loadOverview();
-  }, [loadOverviewData]);
+  }, [currentUser, loadOverviewData]);
 
   useEffect(() => {
     async function loadSongs() {
@@ -150,7 +169,9 @@ export default function Home() {
   }, [selectedPlaylistId]);
 
   async function refreshPlaylists(nextSelectedPlaylistId = selectedPlaylistId) {
-    const playlistData = await loadPlaylists(users);
+    const playlistData = currentUser
+    ? await loadPlaylists([currentUser])
+    : [];
     setPlaylists(playlistData);
     setSelectedPlaylistId(nextSelectedPlaylistId);
   }
@@ -194,10 +215,31 @@ export default function Home() {
 
   const playlistSongIds = new Set(playlistSongs.map((song) => song.song_id));
 
+  function handleLogout() {
+    localStorage.removeItem("currentUser");
+    router.push("/login");
+  }
+
   return (
     <main className="min-h-screen bg-[#f5f7fb] text-slate-950">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
         <DashboardHeader error={error} status={status} />
+
+        {currentUser && (
+          <div className="flex items-center justify-between rounded-2xl bg-white p-4 shadow-sm">
+            <div>
+              <p className="text-sm text-slate-500">Logged in as</p>
+              <p className="font-semibold">{currentUser.name}</p>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
+            >
+              Logout
+            </button>
+          </div>
+        )}
+
         <CountCards counts={summary?.counts} />
 
         <section className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
@@ -215,7 +257,7 @@ export default function Home() {
             <DatabaseControls onChanged={handleDatabaseChanged} />
             <CreatePlaylistForm
               onCreated={handlePlaylistCreated}
-              users={users}
+              users={currentUser ? [currentUser] : []}
             />
             <PlaylistsPanel
               loading={loadingPlaylistSongs}
