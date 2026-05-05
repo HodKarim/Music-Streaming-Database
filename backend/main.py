@@ -1,10 +1,14 @@
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from backend.rate_limit import rate_limit
 from backend.routes import albums, artists, auth, dashboard, playlists, songs, users
 
 
-app = FastAPI(title="Music Streaming Database API")
+app = FastAPI(
+    title="Music Streaming Database API",
+    dependencies=[Depends(rate_limit)],
+)
 
 app.add_middleware(
     CORSMiddleware,
