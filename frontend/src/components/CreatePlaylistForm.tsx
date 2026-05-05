@@ -9,29 +9,22 @@ type CreatePlaylistFormProps = {
   currentUser: User;
   onCreated: (playlist: Playlist) => void;
   token: string;
-  users: User[];
 };
 
 export function CreatePlaylistForm({
   currentUser,
   onCreated,
   token,
-  users,
 }: CreatePlaylistFormProps) {
   const [name, setName] = useState("");
-  const [selectedUserId, setSelectedUserId] = useState("");
   const [status, setStatus] = useState("");
   const [isSaving, setIsSaving] = useState(false);
-  const activeUserId =
-    currentUser.is_admin
-      ? selectedUserId || (users.length === 1 ? String(users[0].user_id) : "")
-      : String(currentUser.user_id);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!name.trim() || !activeUserId) {
-      setStatus("Choose a user and enter a playlist name.");
+    if (!name.trim()) {
+      setStatus("Enter a playlist name.");
       return;
     }
 
@@ -41,7 +34,7 @@ export function CreatePlaylistForm({
         "/playlists",
         {
           name: name.trim(),
-          user_id: Number(activeUserId),
+          user_id: currentUser.user_id,
         },
         { token },
       );
@@ -64,21 +57,6 @@ export function CreatePlaylistForm({
     <section className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
       <h2 className="text-lg font-semibold text-slate-950">Create Playlist</h2>
       <form className="mt-4 grid gap-3" onSubmit={handleSubmit}>
-        {currentUser.is_admin ? (
-          <select
-            className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm outline-none ring-teal-600 transition focus:ring-2"
-            onChange={(event) => setSelectedUserId(event.target.value)}
-            value={activeUserId}
-          >
-            <option value="">Select user</option>
-            {users.map((user) => (
-              <option key={user.user_id} value={user.user_id}>
-                {user.name}
-              </option>
-            ))}
-          </select>
-        ) : null}
-
         <input
           className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm outline-none ring-teal-600 transition focus:ring-2"
           onChange={(event) => setName(event.target.value)}

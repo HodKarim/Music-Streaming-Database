@@ -416,7 +416,6 @@ export default function Home() {
               currentUser={currentUser}
               onCreated={handlePlaylistCreated}
               token={session.token}
-              users={users}
             />
             <PlaylistsPanel
               loading={loadingPlaylistSongs}
