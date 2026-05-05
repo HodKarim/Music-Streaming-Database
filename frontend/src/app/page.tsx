@@ -29,6 +29,10 @@ const SESSION_STORAGE_KEY = "music_streaming_session";
 
 export default function Home() {
   const [session, setSession] = useState<AuthSession | null>(null);
+
+  const token = session?.token ?? "";
+  const currentUser = session?.user ?? null;
+
   const [status, setStatus] = useState<ApiStatus>("checking");
   const [error, setError] = useState("");
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -42,9 +46,6 @@ export default function Home() {
   const [loadingSongs, setLoadingSongs] = useState(false);
   const [loadingPlaylistSongs, setLoadingPlaylistSongs] = useState(false);
 
-  const token = session?.token ?? "";
-  const currentUser = session?.user ?? null;
-
   const loadUsers = useCallback(async () => {
     const userData = await fetchJson<User[]>("/users");
     setUsers(userData);
@@ -56,6 +57,7 @@ export default function Home() {
       const visibleUsers = activeUser.is_admin
         ? userList
         : userList.filter((user) => user.user_id === activeUser.user_id);
+
       const userPlaylists = await Promise.all(
         visibleUsers.map((user) =>
           fetchJson<Playlist[]>(`/users/${user.user_id}/playlists`, {
@@ -96,6 +98,7 @@ export default function Home() {
   const loadOverviewData = useCallback(
     async (activeSession: AuthSession) => {
       setStatus("checking");
+
       const [root, summaryData, userData] = await Promise.all([
         fetchJson<{ message: string }>("/"),
         fetchJson<Summary>("/dashboard/summary", {
@@ -103,6 +106,7 @@ export default function Home() {
         }),
         fetchJson<User[]>("/users"),
       ]);
+
       const playlistData = await loadPlaylists(
         userData,
         activeSession.user,
@@ -149,6 +153,7 @@ export default function Home() {
     async function restoreSession() {
       try {
         await loadUsers();
+
         const storedSession = localStorage.getItem(SESSION_STORAGE_KEY);
 
         if (!storedSession) {
@@ -160,11 +165,12 @@ export default function Home() {
         const user = await fetchJson<AuthUser>("/auth/me", {
           token: parsedSession.token,
         });
+
         const activeSession = { token: parsedSession.token, user };
+
         setSession(activeSession);
         await loadOverviewData(activeSession);
         await loadSongsData(activeSession.token, "");
-
       } catch (caughtError) {
         localStorage.removeItem(SESSION_STORAGE_KEY);
         setSession(null);
@@ -227,17 +233,18 @@ export default function Home() {
   }, [loadSelectedPlaylistSongs, selectedPlaylistId, session]);
 
   async function handleAuthenticated(nextSession: AuthSession) {
+    localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(nextSession));
     setSession(nextSession);
     setError("");
     await loadOverviewData(nextSession);
     await loadSongsData(nextSession.token, search);
-
   }
 
   async function handleSwitchAccount() {
     if (session) {
       await postEmpty("/auth/logout", { token: session.token }).catch(() => null);
     }
+
     localStorage.removeItem(SESSION_STORAGE_KEY);
     setSession(null);
     setSummary(null);
@@ -432,6 +439,7 @@ export default function Home() {
           status={status}
           user={currentUser}
         />
+
         <CountCards counts={summary?.counts} />
 
         <section className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
@@ -449,12 +457,14 @@ export default function Home() {
             selectedPlaylistId={selectedPlaylistId}
             songs={songs}
           />
+
           <div className="flex flex-col gap-6">
             <CreatePlaylistForm
               currentUser={currentUser}
               onCreated={handlePlaylistCreated}
               token={session.token}
             />
+
             <PlaylistsPanel
               loading={loadingPlaylistSongs}
               onSelectPlaylist={setSelectedPlaylistId}
