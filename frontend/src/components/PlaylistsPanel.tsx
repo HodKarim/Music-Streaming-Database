@@ -1,13 +1,15 @@
 import { formatDuration } from "@/lib/format";
+import { postEmpty, postJson } from "@/lib/api";
 import type { Playlist, PlaylistSong, User } from "@/types/music";
 
 type PlaylistsPanelProps = {
   loading: boolean;
   onSelectPlaylist: (playlistId: string) => void;
-  onRefreshPlaylists: () => void;
+  onRefreshPlaylists: (nextSelectedPlaylistId?: string) => Promise<void>;
   playlistSongs: PlaylistSong[];
   playlists: Playlist[];
   selectedPlaylistId: string;
+  token: string;
   users: User[];
 };
 
@@ -18,6 +20,7 @@ export function PlaylistsPanel({
   playlistSongs,
   playlists,
   selectedPlaylistId,
+  token,
   users,
 }: PlaylistsPanelProps) {
   const selectedPlaylist = playlists.find(
@@ -69,13 +72,13 @@ export function PlaylistsPanel({
                 const newName = prompt("Enter new playlist name:");
                 if (!newName) return;
 
-                await fetch(`http://127.0.0.1:8000/playlists/${selectedPlaylistId}`, {
-                  method: "PUT",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ name: newName }),
-                });
+                await postJson<Playlist, { name: string }>(
+                  `/playlists/${selectedPlaylistId}`,
+                  { name: newName },
+                  { method: "PUT", token },
+                );
 
-                await onRefreshPlaylists();
+                await onRefreshPlaylists("");
               }}
             >
               Rename</button>  
@@ -84,11 +87,12 @@ export function PlaylistsPanel({
               onClick={async () => {
                 if (!confirm("Delete this playlist?")) return;
 
-                await fetch(`http://127.0.0.1:8000/playlists/${selectedPlaylistId}`, {
-                  method: "DELETE",
-                });
-                await onRefreshPlaylists();
                 onSelectPlaylist("");
+                await postEmpty(`/playlists/${selectedPlaylistId}`, {
+                  method: "DELETE",
+                  token,
+                });
+                await onRefreshPlaylists("");
               }}
             >Delete</button>
           </div>  
@@ -116,9 +120,24 @@ export function PlaylistsPanel({
               <div className="grid gap-1 py-3 text-sm" key={song.song_id}>
                 <div className="flex items-center justify-between gap-3">
                   <p className="font-medium text-slate-950">{song.title}</p>
-                  <span className="font-mono text-xs text-slate-500">
-                    {formatDuration(song.duration)}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs text-slate-500">
+                      {formatDuration(song.duration)}
+                    </span>
+                    <button
+                      className="rounded-md border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                      onClick={async () => {
+                        await postEmpty(
+                          `/playlists/${selectedPlaylistId}/songs/${song.song_id}`,
+                          { method: "DELETE", token },
+                        );
+                        await onRefreshPlaylists();
+                      }}
+                      type="button"
+                    >
+                      Remove
+                    </button>
+                  </div>
                 </div>
                 <p className="text-slate-600">
                   {song.artist_name} - {song.album_title}

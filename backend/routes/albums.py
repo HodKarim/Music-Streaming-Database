@@ -1,7 +1,8 @@
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
+from backend.auth import get_current_user, require_admin
 from backend.database import execute_query, fetch_all, fetch_one
 from backend.schemas import AlbumCreate, AlbumUpdate
 
@@ -10,7 +11,10 @@ router = APIRouter(prefix="/albums", tags=["albums"])
 
 
 @router.get("")
-def get_albums(search: Optional[str] = Query(default=None)):
+def get_albums(
+    search: Optional[str] = Query(default=None),
+    current_user: dict = Depends(get_current_user),
+):
     base_query = """
         SELECT
             al.album_id,
@@ -36,7 +40,11 @@ def get_albums(search: Optional[str] = Query(default=None)):
 
 
 @router.get("/{album_id}")
-def get_album(album_id: int):
+def get_album(album_id: int, current_user: dict = Depends(get_current_user)):
+    return find_album(album_id)
+
+
+def find_album(album_id: int):
     album = fetch_one(
         """
         SELECT
@@ -59,7 +67,7 @@ def get_album(album_id: int):
 
 
 @router.post("")
-def create_album(album: AlbumCreate):
+def create_album(album: AlbumCreate, current_user: dict = Depends(require_admin)):
     album_id = execute_query(
         """
         INSERT INTO albums (title, release_date, artist_id)
@@ -72,8 +80,12 @@ def create_album(album: AlbumCreate):
 
 
 @router.put("/{album_id}")
-def update_album(album_id: int, album: AlbumUpdate):
-    get_album(album_id)
+def update_album(
+    album_id: int,
+    album: AlbumUpdate,
+    current_user: dict = Depends(require_admin),
+):
+    find_album(album_id)
 
     execute_query(
         """
@@ -88,8 +100,8 @@ def update_album(album_id: int, album: AlbumUpdate):
 
 
 @router.delete("/{album_id}")
-def delete_album(album_id: int):
-    get_album(album_id)
+def delete_album(album_id: int, current_user: dict = Depends(require_admin)):
+    find_album(album_id)
 
     execute_query(
         """
@@ -101,7 +113,10 @@ def delete_album(album_id: int):
 
 
 @router.get("/{album_id}/songs")
-def get_album_songs(album_id: int):
+def get_album_songs(
+    album_id: int,
+    current_user: dict = Depends(get_current_user),
+):
     return fetch_all(
         """
         SELECT

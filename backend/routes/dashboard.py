@@ -1,8 +1,9 @@
 from pathlib import Path
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from mysql.connector import Error
 
+from backend.auth import get_current_user, require_admin
 from backend.database import fetch_all, fetch_one, get_connection
 from backend.load_spotify_features import DEFAULT_CSV_PATH, import_rows
 
@@ -11,7 +12,7 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 
 @router.get("/summary")
-def get_summary():
+def get_summary(current_user: dict = Depends(get_current_user)):
     counts = fetch_one(
         """
         SELECT
@@ -58,7 +59,7 @@ def get_summary():
 
 
 @router.post("/clear")
-def clear_database():
+def clear_database(current_user: dict = Depends(require_admin)):
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -67,6 +68,7 @@ def clear_database():
         for table_name in (
             "playlist_songs",
             "playlists",
+            "user_sessions",
             "songs",
             "albums",
             "artists",
@@ -84,8 +86,33 @@ def clear_database():
         conn.close()
 
 
+@router.post("/clear-songs")
+def clear_songs(current_user: dict = Depends(require_admin)):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute("SET FOREIGN_KEY_CHECKS = 0")
+        for table_name in (
+            "playlist_songs",
+            "songs",
+            "albums",
+            "artists",
+        ):
+            cursor.execute(f"TRUNCATE TABLE {table_name}")
+        cursor.execute("SET FOREIGN_KEY_CHECKS = 1")
+        conn.commit()
+        return {"message": "Songs cleared"}
+    except Error:
+        conn.rollback()
+        raise
+    finally:
+        cursor.close()
+        conn.close()
+
+
 @router.post("/seed")
-def seed_database(limit: int = 50):
+def seed_database(limit: int = 50, current_user: dict = Depends(require_admin)):
     csv_path = Path(DEFAULT_CSV_PATH)
     stats = import_rows(csv_path, limit=limit)
     return {"message": "Database filled", "stats": stats}

@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from backend.routes import albums, artists, dashboard, playlists, songs, users
+from backend.routes import albums, artists, auth, dashboard, playlists, songs, users
 
 
 app = FastAPI(title="Music Streaming Database API")
@@ -17,6 +17,7 @@ app.add_middleware(
 )
 
 app.include_router(users.router)
+app.include_router(auth.router)
 app.include_router(artists.router)
 app.include_router(albums.router)
 app.include_router(songs.router)

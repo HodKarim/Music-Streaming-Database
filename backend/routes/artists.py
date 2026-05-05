@@ -1,7 +1,8 @@
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
+from backend.auth import get_current_user, require_admin
 from backend.database import execute_query, fetch_all, fetch_one
 from backend.schemas import ArtistCreate, ArtistUpdate
 
@@ -10,7 +11,10 @@ router = APIRouter(prefix="/artists", tags=["artists"])
 
 
 @router.get("")
-def get_artists(search: Optional[str] = Query(default=None)):
+def get_artists(
+    search: Optional[str] = Query(default=None),
+    current_user: dict = Depends(get_current_user),
+):
     if search:
         return fetch_all(
             """
@@ -32,7 +36,14 @@ def get_artists(search: Optional[str] = Query(default=None)):
 
 
 @router.get("/{artist_id}")
-def get_artist(artist_id: int):
+def get_artist(
+    artist_id: int,
+    current_user: dict = Depends(get_current_user),
+):
+    return find_artist(artist_id)
+
+
+def find_artist(artist_id: int):
     artist = fetch_one(
         """
         SELECT artist_id, name
@@ -49,7 +60,7 @@ def get_artist(artist_id: int):
 
 
 @router.post("")
-def create_artist(artist: ArtistCreate):
+def create_artist(artist: ArtistCreate, current_user: dict = Depends(require_admin)):
     artist_id = execute_query(
         """
         INSERT INTO artists (name)
@@ -62,8 +73,12 @@ def create_artist(artist: ArtistCreate):
 
 
 @router.put("/{artist_id}")
-def update_artist(artist_id: int, artist: ArtistUpdate):
-    get_artist(artist_id)
+def update_artist(
+    artist_id: int,
+    artist: ArtistUpdate,
+    current_user: dict = Depends(require_admin),
+):
+    find_artist(artist_id)
 
     execute_query(
         """
@@ -78,8 +93,8 @@ def update_artist(artist_id: int, artist: ArtistUpdate):
 
 
 @router.delete("/{artist_id}")
-def delete_artist(artist_id: int):
-    get_artist(artist_id)
+def delete_artist(artist_id: int, current_user: dict = Depends(require_admin)):
+    find_artist(artist_id)
 
     execute_query(
         """
@@ -91,7 +106,10 @@ def delete_artist(artist_id: int):
 
 
 @router.get("/{artist_id}/songs")
-def get_artist_songs(artist_id: int):
+def get_artist_songs(
+    artist_id: int,
+    current_user: dict = Depends(get_current_user),
+):
     return fetch_all(
         """
         SELECT

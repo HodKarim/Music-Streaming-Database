@@ -6,17 +6,26 @@ import { postJson } from "@/lib/api";
 import type { Playlist, User } from "@/types/music";
 
 type CreatePlaylistFormProps = {
+  currentUser: User;
   onCreated: (playlist: Playlist) => void;
+  token: string;
   users: User[];
 };
 
-export function CreatePlaylistForm({ onCreated, users }: CreatePlaylistFormProps) {
+export function CreatePlaylistForm({
+  currentUser,
+  onCreated,
+  token,
+  users,
+}: CreatePlaylistFormProps) {
   const [name, setName] = useState("");
   const [selectedUserId, setSelectedUserId] = useState("");
   const [status, setStatus] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const activeUserId =
-    selectedUserId || (users.length === 1 ? String(users[0].user_id) : "");
+    currentUser.is_admin
+      ? selectedUserId || (users.length === 1 ? String(users[0].user_id) : "")
+      : String(currentUser.user_id);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -34,6 +43,7 @@ export function CreatePlaylistForm({ onCreated, users }: CreatePlaylistFormProps
           name: name.trim(),
           user_id: Number(activeUserId),
         },
+        { token },
       );
 
       setName("");
@@ -54,18 +64,20 @@ export function CreatePlaylistForm({ onCreated, users }: CreatePlaylistFormProps
     <section className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
       <h2 className="text-lg font-semibold text-slate-950">Create Playlist</h2>
       <form className="mt-4 grid gap-3" onSubmit={handleSubmit}>
-        <select
-          className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm outline-none ring-teal-600 transition focus:ring-2"
-          onChange={(event) => setSelectedUserId(event.target.value)}
-          value={activeUserId}
-        >
-          <option value="">Select user</option>
-          {users.map((user) => (
-            <option key={user.user_id} value={user.user_id}>
-              {user.name}
-            </option>
-          ))}
-        </select>
+        {currentUser.is_admin ? (
+          <select
+            className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm outline-none ring-teal-600 transition focus:ring-2"
+            onChange={(event) => setSelectedUserId(event.target.value)}
+            value={activeUserId}
+          >
+            <option value="">Select user</option>
+            {users.map((user) => (
+              <option key={user.user_id} value={user.user_id}>
+                {user.name}
+              </option>
+            ))}
+          </select>
+        ) : null}
 
         <input
           className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm outline-none ring-teal-600 transition focus:ring-2"

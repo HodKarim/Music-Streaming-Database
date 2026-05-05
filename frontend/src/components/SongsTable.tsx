@@ -1,16 +1,22 @@
 import { useMemo, useState } from "react";
 
 import { formatDuration } from "@/lib/format";
-import type { Song } from "@/types/music";
+import type { Album, Artist, Song, SongPayload } from "@/types/music";
 
 const SONGS_PER_PAGE = 10;
 
 type SongsTableProps = {
   addingSongId: number | null;
+  albums: Album[];
+  artists: Artist[];
+  isAdmin: boolean;
   playlistSongIds: Set<number>;
   loading: boolean;
   onAddToPlaylist: (song: Song) => void;
+  onCreateSong: (song: SongPayload) => Promise<void>;
+  onDeleteSong: (song: Song) => Promise<void>;
   onSearchChange: (search: string) => void;
+  onUpdateSong: (songId: number, song: SongPayload) => Promise<void>;
   search: string;
   selectedPlaylistId: string;
   songs: Song[];
@@ -18,15 +24,31 @@ type SongsTableProps = {
 
 export function SongsTable({
   addingSongId,
+  albums,
+  artists,
+  isAdmin,
   playlistSongIds,
   loading,
   onAddToPlaylist,
+  onCreateSong,
+  onDeleteSong,
   onSearchChange,
+  onUpdateSong,
   search,
   selectedPlaylistId,
   songs,
 }: SongsTableProps) {
   const [currentPage, setCurrentPage] = useState(1);
+  const [editingSongId, setEditingSongId] = useState<number | null>(null);
+  const [formStatus, setFormStatus] = useState("");
+  const emptySongForm = {
+    album_id: albums[0]?.album_id ?? 0,
+    artist_id: artists[0]?.artist_id ?? 0,
+    duration: 180,
+    genre: "",
+    title: "",
+  };
+  const [songForm, setSongForm] = useState<SongPayload>(emptySongForm);
   const totalPages = Math.max(Math.ceil(songs.length / SONGS_PER_PAGE), 1);
   const activePage = Math.min(currentPage, totalPages);
   const pageStart = (activePage - 1) * SONGS_PER_PAGE;
@@ -35,6 +57,64 @@ export function SongsTable({
     () => songs.slice(pageStart, pageEnd),
     [pageEnd, pageStart, songs],
   );
+
+  function startEditing(song: Song) {
+    setEditingSongId(song.song_id);
+    setFormStatus("");
+    setSongForm({
+      album_id: song.album_id,
+      artist_id: song.artist_id,
+      duration: song.duration,
+      genre: song.genre,
+      title: song.title,
+    });
+  }
+
+  function resetForm() {
+    setEditingSongId(null);
+    setSongForm({
+      album_id: albums[0]?.album_id ?? 0,
+      artist_id: artists[0]?.artist_id ?? 0,
+      duration: 180,
+      genre: "",
+      title: "",
+    });
+  }
+
+  async function handleSongSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const payload = {
+      ...songForm,
+      album_id: songForm.album_id || albums[0]?.album_id || 0,
+      artist_id: songForm.artist_id || artists[0]?.artist_id || 0,
+    };
+
+    if (
+      !payload.title.trim() ||
+      !payload.genre.trim() ||
+      !payload.album_id ||
+      !payload.artist_id ||
+      payload.duration <= 0
+    ) {
+      setFormStatus("Complete the song details before saving.");
+      return;
+    }
+
+    try {
+      if (editingSongId) {
+        await onUpdateSong(editingSongId, payload);
+        setFormStatus("Song updated.");
+      } else {
+        await onCreateSong(payload);
+        setFormStatus("Song created.");
+      }
+      resetForm();
+    } catch (caughtError) {
+      setFormStatus(
+        caughtError instanceof Error ? caughtError.message : "Could not save song.",
+      );
+    }
+  }
 
   return (
     <div className="rounded-md border border-slate-200 bg-white shadow-sm">
@@ -56,6 +136,98 @@ export function SongsTable({
           />
         </div>
       </div>
+      {isAdmin ? (
+        <form
+          className="grid gap-3 border-b border-slate-200 p-4 md:grid-cols-2 xl:grid-cols-6"
+          onSubmit={handleSongSubmit}
+        >
+          <input
+            className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm outline-none ring-teal-600 transition focus:ring-2 xl:col-span-2"
+            onChange={(event) =>
+              setSongForm((current) => ({ ...current, title: event.target.value }))
+            }
+            placeholder="Song title"
+            type="text"
+            value={songForm.title}
+          />
+          <input
+            className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm outline-none ring-teal-600 transition focus:ring-2"
+            onChange={(event) =>
+              setSongForm((current) => ({ ...current, genre: event.target.value }))
+            }
+            placeholder="Genre"
+            type="text"
+            value={songForm.genre}
+          />
+          <input
+            className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm outline-none ring-teal-600 transition focus:ring-2"
+            min={1}
+            onChange={(event) =>
+              setSongForm((current) => ({
+                ...current,
+                duration: Number(event.target.value),
+              }))
+            }
+            placeholder="Seconds"
+            type="number"
+            value={songForm.duration}
+          />
+          <select
+            className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm outline-none ring-teal-600 transition focus:ring-2"
+            onChange={(event) =>
+              setSongForm((current) => ({
+                ...current,
+                artist_id: Number(event.target.value),
+              }))
+            }
+            value={songForm.artist_id || artists[0]?.artist_id || 0}
+          >
+            <option value={0}>Artist</option>
+            {artists.map((artist) => (
+              <option key={artist.artist_id} value={artist.artist_id}>
+                {artist.name}
+              </option>
+            ))}
+          </select>
+          <select
+            className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm outline-none ring-teal-600 transition focus:ring-2"
+            onChange={(event) =>
+              setSongForm((current) => ({
+                ...current,
+                album_id: Number(event.target.value),
+              }))
+            }
+            value={songForm.album_id || albums[0]?.album_id || 0}
+          >
+            <option value={0}>Album</option>
+            {albums.map((album) => (
+              <option key={album.album_id} value={album.album_id}>
+                {album.title}
+              </option>
+            ))}
+          </select>
+          <div className="flex gap-2 xl:col-span-6">
+            <button
+              className="h-10 rounded-md bg-teal-700 px-4 text-sm font-semibold text-white transition hover:bg-teal-800"
+              type="submit"
+            >
+              {editingSongId ? "Update song" : "Create song"}
+            </button>
+            {editingSongId ? (
+              <button
+                className="h-10 rounded-md border border-slate-300 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                onClick={resetForm}
+                type="button"
+              >
+                Cancel
+              </button>
+            ) : null}
+            {formStatus ? (
+              <p className="self-center text-sm text-slate-600">{formStatus}</p>
+            ) : null}
+          </div>
+        </form>
+      ) : null}
       <div className="overflow-x-auto">
         <table className="w-full min-w-[760px] border-collapse text-left text-sm">
           <thead className="bg-slate-50 text-xs uppercase text-slate-500">
@@ -66,6 +238,7 @@ export function SongsTable({
               <th className="px-4 py-3 font-semibold">Genre</th>
               <th className="px-4 py-3 font-semibold">Duration</th>
               <th className="px-4 py-3 font-semibold">Add</th>
+              {isAdmin ? <th className="px-4 py-3 font-semibold">Edit</th> : null}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -98,12 +271,45 @@ export function SongsTable({
                       {isAdding ? "Adding" : isAlreadyAdded ? "Added" : "Add"}
                     </button>
                   </td>
+                  {isAdmin ? (
+                    <td className="px-4 py-3">
+                      <div className="flex gap-2">
+                        <button
+                          className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                          onClick={() => startEditing(song)}
+                          type="button"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          className="rounded-md bg-rose-700 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-rose-800"
+                          onClick={() => {
+                            if (confirm(`Delete "${song.title}"?`)) {
+                              onDeleteSong(song).catch((caughtError) =>
+                                setFormStatus(
+                                  caughtError instanceof Error
+                                    ? caughtError.message
+                                    : "Could not delete song.",
+                                ),
+                              );
+                            }
+                          }}
+                          type="button"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  ) : null}
                 </tr>
               );
             })}
             {!songs.length ? (
               <tr>
-                <td className="px-4 py-8 text-center text-slate-500" colSpan={6}>
+                <td
+                  className="px-4 py-8 text-center text-slate-500"
+                  colSpan={isAdmin ? 7 : 6}
+                >
                   {loading ? "Loading songs..." : "No songs found."}
                 </td>
               </tr>
