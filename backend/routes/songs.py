@@ -117,7 +117,9 @@ def update_song(
 
 @router.delete("/{song_id}")
 def delete_song(song_id: int, current_user: dict = Depends(require_admin)):
-    find_song(song_id)
+    song = find_song(song_id)
+    album_id = song["album_id"]
+    artist_id = song["artist_id"]
 
     execute_transaction(
         [
@@ -134,6 +136,29 @@ def delete_song(song_id: int, current_user: dict = Depends(require_admin)):
                 WHERE song_id = %s
                 """,
                 (song_id,),
+            ),
+            (
+                """
+                DELETE FROM albums
+                WHERE album_id = %s
+                  AND NOT EXISTS (
+                      SELECT 1 FROM songs s WHERE s.album_id = albums.album_id
+                  )
+                """,
+                (album_id,),
+            ),
+            (
+                """
+                DELETE FROM artists
+                WHERE artist_id = %s
+                  AND NOT EXISTS (
+                      SELECT 1 FROM songs s WHERE s.artist_id = artists.artist_id
+                  )
+                  AND NOT EXISTS (
+                      SELECT 1 FROM albums a WHERE a.artist_id = artists.artist_id
+                  )
+                """,
+                (artist_id,),
             ),
         ]
     )
