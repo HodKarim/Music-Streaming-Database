@@ -8,13 +8,11 @@ import type { Playlist, User } from "@/types/music";
 type CreatePlaylistFormProps = {
   currentUser: User;
   onCreated: (playlist: Playlist) => void;
-  token: string;
 };
 
 export function CreatePlaylistForm({
   currentUser,
   onCreated,
-  token,
 }: CreatePlaylistFormProps) {
   const [name, setName] = useState("");
   const [status, setStatus] = useState("");
@@ -36,7 +34,7 @@ export function CreatePlaylistForm({
           name: name.trim(),
           user_id: currentUser.user_id,
         },
-        { token },
+        { userId: currentUser.user_id },
       );
 
       setName("");

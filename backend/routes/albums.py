@@ -19,7 +19,6 @@ def get_albums(
         SELECT
             al.album_id,
             al.title,
-            al.release_date,
             al.artist_id,
             ar.name AS artist_name
         FROM albums al
@@ -50,7 +49,6 @@ def find_album(album_id: int):
         SELECT
             al.album_id,
             al.title,
-            al.release_date,
             al.artist_id,
             ar.name AS artist_name
         FROM albums al
@@ -70,10 +68,10 @@ def find_album(album_id: int):
 def create_album(album: AlbumCreate, current_user: dict = Depends(require_admin)):
     album_id = execute_query(
         """
-        INSERT INTO albums (title, release_date, artist_id)
-        VALUES (%s, %s, %s)
+        INSERT INTO albums (title, artist_id)
+        VALUES (%s, %s)
         """,
-        (album.title, album.release_date, album.artist_id),
+        (album.title, album.artist_id),
     )
 
     return get_album(album_id)
@@ -90,10 +88,10 @@ def update_album(
     execute_query(
         """
         UPDATE albums
-        SET title = %s, release_date = %s, artist_id = %s
+        SET title = %s, artist_id = %s
         WHERE album_id = %s
         """,
-        (album.title, album.release_date, album.artist_id, album_id),
+        (album.title, album.artist_id, album_id),
     )
 
     return get_album(album_id)

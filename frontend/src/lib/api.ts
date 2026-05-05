@@ -2,22 +2,22 @@ export const API_URL =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "http://localhost:8000";
 
 type RequestOptions = {
-  token?: string;
+  userId?: number;
 };
 
 type BodyRequestOptions = RequestOptions & {
   method?: "POST" | "PUT" | "DELETE";
 };
 
-function requestHeaders(token?: string, hasBody = false) {
+function requestHeaders(userId?: number, hasBody = false) {
   const headers: Record<string, string> = {};
 
   if (hasBody) {
     headers["Content-Type"] = "application/json";
   }
 
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
+  if (userId) {
+    headers["X-User-Id"] = String(userId);
   }
 
   return headers;
@@ -51,7 +51,7 @@ export async function fetchJson<T>(
 ): Promise<T> {
   const response = await fetch(`${API_URL}${path}`, {
     cache: "no-store",
-    headers: requestHeaders(options.token),
+    headers: requestHeaders(options.userId),
   });
 
   return parseResponse<T>(response);
@@ -65,7 +65,7 @@ export async function postJson<TResponse, TBody>(
   const response = await fetch(`${API_URL}${path}`, {
     body: JSON.stringify(body),
     cache: "no-store",
-    headers: requestHeaders(options.token, true),
+    headers: requestHeaders(options.userId, true),
     method: options.method ?? "POST",
   });
 
@@ -78,7 +78,7 @@ export async function postEmpty<TResponse>(
 ): Promise<TResponse> {
   const response = await fetch(`${API_URL}${path}`, {
     cache: "no-store",
-    headers: requestHeaders(options.token),
+    headers: requestHeaders(options.userId),
     method: options.method ?? "POST",
   });
 

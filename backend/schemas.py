@@ -1,6 +1,3 @@
-from datetime import date
-from typing import Optional
-
 from pydantic import BaseModel
 
 
@@ -26,13 +23,11 @@ class ArtistUpdate(BaseModel):
 
 class AlbumCreate(BaseModel):
     title: str
-    release_date: Optional[date] = None
     artist_id: int
 
 
 class AlbumUpdate(BaseModel):
     title: str
-    release_date: Optional[date] = None
     artist_id: int
 
 

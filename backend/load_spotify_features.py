@@ -47,8 +47,8 @@ def get_or_create_album(cursor, title: str, artist_id: int) -> tuple[int, bool]:
 
     cursor.execute(
         """
-        INSERT INTO albums (title, release_date, artist_id)
-        VALUES (%s, NULL, %s)
+        INSERT INTO albums (title, artist_id)
+        VALUES (%s, %s)
         """,
         (title, artist_id),
     )

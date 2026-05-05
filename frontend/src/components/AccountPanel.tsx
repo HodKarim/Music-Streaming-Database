@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 
 import { postJson } from "@/lib/api";
 import type {
-  AuthSession,
+  AuthUser,
   LoginPayload,
   SignupPayload,
   User,
@@ -13,7 +13,7 @@ import type {
 type AccountPanelProps = {
   error: string;
   knownUsers: User[];
-  onAuthenticated: (session: AuthSession) => void;
+  onAuthenticated: (user: AuthUser) => void;
   onRefreshUsers: () => Promise<unknown>;
 };
 
@@ -63,22 +63,25 @@ export function AccountPanel({
 
     try {
       setIsSaving(true);
-      const session =
+      const authenticatedUser =
         mode === "signin"
-          ? await postJson<AuthSession, LoginPayload>("/auth/login", {
+          ? await postJson<AuthUser, LoginPayload>("/auth/login", {
               email: activeEmail.trim(),
               password,
             })
-          : await postJson<AuthSession, SignupPayload>("/auth/signup", {
+          : await postJson<AuthUser, SignupPayload>("/auth/signup", {
               email: activeEmail.trim(),
               is_admin: isAdmin,
               name: name.trim(),
               password,
             });
 
-      localStorage.setItem("music_streaming_session", JSON.stringify(session));
+      localStorage.setItem(
+        "music_streaming_user",
+        JSON.stringify(authenticatedUser),
+      );
       await onRefreshUsers();
-      onAuthenticated(session);
+      onAuthenticated(authenticatedUser);
     } catch (caughtError) {
       setStatus(
         caughtError instanceof Error

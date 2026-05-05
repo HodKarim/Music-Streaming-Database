@@ -68,7 +68,6 @@ def clear_database(current_user: dict = Depends(require_admin)):
         for table_name in (
             "playlist_songs",
             "playlists",
-            "user_sessions",
             "songs",
             "albums",
             "artists",

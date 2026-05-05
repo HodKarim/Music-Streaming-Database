@@ -6,10 +6,10 @@ import { postEmpty } from "@/lib/api";
 
 type DatabaseControlsProps = {
   onChanged: () => Promise<void>;
-  token: string;
+  userId: number;
 };
 
-export function DatabaseControls({ onChanged, token }: DatabaseControlsProps) {
+export function DatabaseControls({ onChanged, userId }: DatabaseControlsProps) {
   const [status, setStatus] = useState("");
   const [isWorking, setIsWorking] = useState(false);
 
@@ -23,7 +23,7 @@ export function DatabaseControls({ onChanged, token }: DatabaseControlsProps) {
     try {
       setIsWorking(true);
       setStatus(statusByAction[action][0]);
-      await postEmpty(`/dashboard/${action}`, { token });
+      await postEmpty(`/dashboard/${action}`, { userId });
       await onChanged();
       setStatus(statusByAction[action][1]);
     } catch (caughtError) {

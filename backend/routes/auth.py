@@ -1,8 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 
 from backend.auth import (
-    create_session,
-    delete_session,
     get_current_user,
     hash_password,
     public_user,
@@ -16,8 +14,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 def auth_response(user: dict):
-    token = create_session(user["user_id"])
-    return {"token": token, "user": public_user(user)}
+    return public_user(user)
 
 
 @router.post("/signup")
@@ -68,12 +65,6 @@ def login(credentials: UserLogin):
         raise HTTPException(401, detail="Invalid email or password")
 
     return auth_response(user)
-
-
-@router.post("/logout")
-def logout(current_user: dict = Depends(get_current_user)):
-    delete_session(current_user["token"])
-    return {"message": "Signed out"}
 
 
 @router.get("/me")

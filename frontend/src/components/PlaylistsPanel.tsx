@@ -9,7 +9,7 @@ type PlaylistsPanelProps = {
   playlistSongs: PlaylistSong[];
   playlists: Playlist[];
   selectedPlaylistId: string;
-  token: string;
+  userId: number;
   users: User[];
 };
 
@@ -20,7 +20,7 @@ export function PlaylistsPanel({
   playlistSongs,
   playlists,
   selectedPlaylistId,
-  token,
+  userId,
   users,
 }: PlaylistsPanelProps) {
   const selectedPlaylist = playlists.find(
@@ -81,7 +81,7 @@ export function PlaylistsPanel({
                 await postJson<Playlist, { name: string }>(
                   `/playlists/${selectedPlaylistId}`,
                   { name: newName },
-                  { method: "PUT", token },
+                  { method: "PUT", userId },
                 );
 
                 await onRefreshPlaylists("");
@@ -106,7 +106,7 @@ export function PlaylistsPanel({
                 onSelectPlaylist("");
                 await postEmpty(`/playlists/${selectedPlaylistId}`, {
                   method: "DELETE",
-                  token,
+                  userId,
                 });
                 await onRefreshPlaylists("");
               }}
@@ -145,7 +145,7 @@ export function PlaylistsPanel({
                       onClick={async () => {
                         await postEmpty(
                           `/playlists/${selectedPlaylistId}/songs/${song.song_id}`,
-                          { method: "DELETE", token },
+                          { method: "DELETE", userId },
                         );
                         await onRefreshPlaylists();
                       }}

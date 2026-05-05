@@ -1,13 +1,9 @@
 import secrets
 
 import bcrypt
-from fastapi import Depends, HTTPException
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi import Depends, Header, HTTPException
 
-from backend.database import execute_query, fetch_one
-
-
-security = HTTPBearer(auto_error=False)
+from backend.database import fetch_one
 
 
 def hash_password(password: str) -> str:
@@ -21,19 +17,6 @@ def verify_password(password: str, password_hash: str) -> bool:
     return secrets.compare_digest(password, password_hash)
 
 
-def ensure_session_table():
-    execute_query(
-        """
-        CREATE TABLE IF NOT EXISTS user_sessions (
-            token VARCHAR(255) PRIMARY KEY,
-            user_id INT NOT NULL,
-            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
-        )
-        """
-    )
-
-
 def public_user(user: dict):
     return {
         "user_id": user["user_id"],
@@ -43,52 +26,25 @@ def public_user(user: dict):
     }
 
 
-def create_session(user_id: int) -> str:
-    ensure_session_table()
-    token = secrets.token_urlsafe(32)
-    execute_query(
-        """
-        INSERT INTO user_sessions (token, user_id)
-        VALUES (%s, %s)
-        """,
-        (token, user_id),
-    )
-    return token
-
-
-def delete_session(token: str):
-    ensure_session_table()
-    execute_query(
-        """
-        DELETE FROM user_sessions
-        WHERE token = %s
-        """,
-        (token,),
-    )
-
-
 def get_current_user(
-    credentials: HTTPAuthorizationCredentials | None = Depends(security),
+    current_user_id: int | None = Header(default=None, alias="X-User-Id"),
 ):
-    if not credentials:
-        raise HTTPException(401, detail="Sign in required")
+    if not current_user_id:
+        raise HTTPException(401, detail="User id required")
 
-    ensure_session_table()
     user = fetch_one(
         """
-        SELECT u.user_id, u.name, u.email, u.password, u.is_admin
-        FROM user_sessions s
-        JOIN users u ON s.user_id = u.user_id
-        WHERE s.token = %s
+        SELECT user_id, name, email, password, is_admin
+        FROM users
+        WHERE user_id = %s
         """,
-        (credentials.credentials,),
+        (current_user_id,),
     )
 
     if not user:
-        raise HTTPException(401, detail="Invalid session")
+        raise HTTPException(401, detail="Invalid user")
 
     user["is_admin"] = bool(user["is_admin"])
-    user["token"] = credentials.credentials
     return user
 
 

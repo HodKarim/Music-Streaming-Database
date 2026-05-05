@@ -39,11 +39,6 @@ export type User = {
 
 export type AuthUser = User;
 
-export type AuthSession = {
-  token: string;
-  user: AuthUser;
-};
-
 export type LoginPayload = {
   email: string;
   password: string;
@@ -64,7 +59,6 @@ export type Album = {
   title: string;
   artist_id: number;
   artist_name: string;
-  release_date: string | null;
 };
 
 export type Playlist = {
